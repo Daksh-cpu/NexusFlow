@@ -13,7 +13,7 @@
 
 NexusFlow is a **production-grade multi-agent research platform** that uses an adversarial debate architecture to produce balanced, evidence-backed investment analysis. Instead of a single AI writing a report, NexusFlow deploys specialized agents that argue opposing viewpoints before an Executive agent delivers the final verdict.
 
-### The Debate Architecture
+### The 6-Agent Debate Architecture
 
 ```
 ┌─────────────────┐
@@ -21,26 +21,44 @@ NexusFlow is a **production-grade multi-agent research platform** that uses an a
 └────────┬────────┘
          │
    ┌─────▼─────┐
-   │ Query      │  Generates 3 research queries
-   │ Engine     │
+   │ 🔍 Query   │  Generates 3 targeted research angles
+   │   Engine   │
    └─────┬─────┘
          │
    ┌─────▼─────┐
-   │ Retrieval  │  Hybrid search: Qdrant (local) + Tavily (web)
-   │ Pipeline   │  → Reranking (Cohere → Local Fallback)
+   │ 📡 Hybrid  │  Qdrant (Local) + Tavily (Web)
+   │  Search    │  → 3-Tier Reranking Pipeline
    └──┬─────┬──┘
       │     │
  ┌────▼──┐ ┌▼────┐    ← Parallel Execution
  │ 🟢    │ │ 🔴  │
- │ BULL  │ │BEAR │
+ │ BULL  │ │BEAR │    Builds upside case & investigates risks
  │Analyst│ │Analyst│
  └───┬───┘ └──┬──┘
      │        │
    ┌─▼────────▼─┐
+   │ ⚖️ Quality  │  Scores analysis /20 (Citations, Logic, Risks)
+   │   Critic   │  Enforces strict self-correction
+   └─────┬──────┘
+         │
+   ┌─────▼───────┐
    │ ⚡ Executive │  Final Verdict: INVEST / WAIT / SELL
-   │ Synthesizer │  + Confidence Score + Next Actions
+   │ Synthesizer │  + Confidence Score + Action Plan
    └─────────────┘
 ```
+
+---
+
+## ✨ v1.0.0 Features
+
+*   **Adversarial Debate**: Bull and Bear analysts argue the data in parallel to eliminate AI bias.
+*   **Self-Correction System**: The Critic agent mathematically scores the analysis, forcing agents to back up claims with citations.
+*   **Research Ledger**: All reports are automatically cached locally as JSON. Re-requesting the same company streams instantly, bypassing the 40s LLM execution time.
+*   **Premium Glassmorphism UI**: 
+    *   Live-streaming Agent Thought sidebar
+    *   Visual Pipeline Execution Tracker
+    *   Dynamic pulse animations and professional markdown rendering
+*   **Bulletproof Retrieval**: Gracefully falls back through 3 tiers of rerankers and hybrid search methods to guarantee a result even if services go offline.
 
 ---
 
