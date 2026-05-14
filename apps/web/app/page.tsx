@@ -1,0 +1,635 @@
+"use client";
+
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Search, Send, Activity, Brain, FileText, Settings, LogOut, Terminal, Layers, Globe, Zap, User, Copy, RotateCcw, Clock, CheckCircle2, Circle, Loader2, Trash2, ArrowRight } from "lucide-react";
+import ReactMarkdown from "react-markdown";
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+
+function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs));
+}
+
+type AgentEvent = { node: string; update: any };
+
+const AGENT_META: Record<string, { label: string; icon: string; colorClass: string; cardClass: string }> = {
+  generate_queries: { label: "Query Engine", icon: "🔍", colorClass: "", cardClass: "" },
+  retrieve_documents: { label: "Intelligence", icon: "📡", colorClass: "", cardClass: "" },
+  bull_analyst: { label: "Bull Analyst", icon: "🟢", colorClass: "node-bull", cardClass: "thought-bull" },
+  bear_analyst: { label: "Bear Analyst", icon: "🔴", colorClass: "node-bear", cardClass: "thought-bear" },
+  critic: { label: "Critic", icon: "🔍", colorClass: "node-critic", cardClass: "thought-critic" },
+  synthesize: { label: "Executive", icon: "⚡", colorClass: "node-executive", cardClass: "thought-executive" },
+};
+
+// Pipeline stage order for the visual tracker
+const PIPELINE_STAGES = ["generate_queries", "retrieve_documents", "bull_analyst", "bear_analyst", "critic", "synthesize"];
+
+export default function Page() {
+  const [company, setCompany] = useState("");
+  const [question, setQuestion] = useState("");
+  const [events, setEvents] = useState<AgentEvent[]>([]);
+  const [finalReport, setFinalReport] = useState<string>("");
+  const [running, setRunning] = useState(false);
+  const [activeNode, setActiveNode] = useState<string>("");
+  const [startTime, setStartTime] = useState<number>(0);
+  const [elapsed, setElapsed] = useState<number>(0);
+  const [copied, setCopied] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string>("");
+  const [currentView, setCurrentView] = useState<"dashboard" | "ledger">("dashboard");
+  const [reportsList, setReportsList] = useState<any[]>([]);
+  const [loadingReports, setLoadingReports] = useState(false);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  const loadReports = async () => {
+    setLoadingReports(true);
+    try {
+      const res = await fetch("http://localhost:4000/reports");
+      const data = await res.json();
+      setReportsList(data);
+    } catch (e) {
+      console.error("Failed to load reports", e);
+    }
+    setLoadingReports(false);
+  };
+
+  const deleteReport = async (id: string) => {
+    try {
+      await fetch(`http://localhost:4000/reports/${id}`, { method: "DELETE" });
+      setReportsList(prev => prev.filter(r => r.id !== id));
+    } catch (e) {
+      console.error("Failed to delete report", e);
+    }
+  };
+
+  const loadPastReport = async (id: string) => {
+    try {
+      const res = await fetch(`http://localhost:4000/reports/${id}`);
+      const data = await res.json();
+      setCompany(data.company);
+      setQuestion(data.question);
+      setFinalReport(data.synthesis);
+      setCurrentView("dashboard");
+    } catch (e) {
+      console.error("Failed to load past report", e);
+    }
+  };
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      // Small timeout allows framer-motion to render the new item's layout
+      const timeout = setTimeout(() => {
+        if (scrollRef.current) {
+          scrollRef.current.scrollTo({
+            top: scrollRef.current.scrollHeight,
+            behavior: "smooth"
+          });
+        }
+      }, 100);
+      return () => clearTimeout(timeout);
+    }
+  }, [events]);
+
+  // Live timer
+  useEffect(() => {
+    if (running && startTime > 0) {
+      timerRef.current = setInterval(() => {
+        setElapsed(Math.floor((Date.now() - startTime) / 1000));
+      }, 500);
+    }
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [running, startTime]);
+
+  const canRun = useMemo(() => company.trim().length > 0 && question.trim().length > 0, [company, question]);
+
+  const completedNodes = useMemo(() => new Set(events.map(e => e.node)), [events]);
+
+  const run = useCallback(() => {
+    if (!canRun || running) return;
+    
+    setRunning(true);
+    setEvents([]);
+    setFinalReport("");
+    setActiveNode("generate_queries");
+    setStartTime(Date.now());
+    setElapsed(0);
+    setErrorMsg("");
+
+    const contextualQuestion = `Analyze ${company}: ${question}`;
+    const streamUrl = `http://localhost:4000/analyze/stream?company=${encodeURIComponent(company)}&question=${encodeURIComponent(contextualQuestion)}`;
+    const source = new EventSource(streamUrl);
+    let receivedFinal = false;
+
+    source.addEventListener("agent", (evt) => {
+      const payload = JSON.parse((evt as MessageEvent).data);
+      setEvents((prev) => [...prev, payload]);
+      setActiveNode(payload.node);
+    });
+
+    source.addEventListener("final", (evt) => {
+      receivedFinal = true;
+      const payload = JSON.parse((evt as MessageEvent).data);
+      setFinalReport(payload);
+      setRunning(false);
+      setActiveNode("");
+      source.close();
+    });
+
+    source.addEventListener("error", (evt) => {
+      const payload = JSON.parse((evt as MessageEvent).data);
+      setErrorMsg(payload.message || "An error occurred.");
+      setRunning(false);
+      setActiveNode("");
+      source.close();
+    });
+
+    source.onerror = () => {
+      if (!receivedFinal) {
+        setRunning(false);
+        setActiveNode("");
+        if (!errorMsg) setErrorMsg("Connection lost. Please restart the API server.");
+      }
+      source.close();
+    };
+  }, [canRun, running, company, question, errorMsg]);
+
+  const resetAll = () => {
+    setFinalReport("");
+    setEvents([]);
+    setElapsed(0);
+    setErrorMsg("");
+    setActiveNode("");
+  };
+
+  const copyReport = async () => {
+    try {
+      await navigator.clipboard.writeText(finalReport);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
+
+  const handleFeatureClick = (name: string) => {
+    alert(`${name} feature is coming soon in the next update!`);
+  };
+
+  const completedAgents = completedNodes.size;
+
+  return (
+    <div className="relative min-h-screen flex flex-col text-white overflow-hidden">
+      <div className="ambient-bg" />
+      <div className="glow-overlay" />
+      
+      <div className="particles">
+        {Array.from({ length: 12 }, (_, i) => (
+          <div key={i} className={`particle particle-${i + 1}`} />
+        ))}
+      </div>
+      
+      {/* Top Navigation */}
+      <header className="dashboard-header flex-none">
+        <div className="flex items-center gap-3">
+          <motion.div whileHover={{ scale: 1.05, rotate: 5 }} className="logo-container">
+            <Layers className="logo-icon" size={20} />
+          </motion.div>
+          <span className="logo-text">NexusFlow <span className="logo-accent">Research</span></span>
+        </div>
+        
+        <div className="nav-links">
+          <span className="nav-link" onClick={() => handleFeatureClick("Search Tool")}>Search Tool</span>
+          <span className="nav-link" onClick={() => handleFeatureClick("Research Ledger")}>Research Ledger</span>
+          <span className="nav-link" onClick={() => handleFeatureClick("Data Analysis")}>Data Analysis</span>
+          <div className="user-profile">
+            <Settings size={18} className="nav-link" onClick={() => handleFeatureClick("Settings")} />
+            <motion.div whileHover={{ scale: 1.1 }} className="profile-btn" onClick={() => handleFeatureClick("Profile")}>
+              <User size={18} />
+            </motion.div>
+          </div>
+        </div>
+      </header>
+
+      <main className="flex-1 flex overflow-hidden p-6 gap-6 z-10">
+        {/* Left Sidebar */}
+        <nav className="glass-panel sidebar-nav flex-none">
+          <NavItem icon={<Activity size={24} />} active={currentView === "dashboard"} onClick={() => setCurrentView("dashboard")} />
+          <NavItem icon={<FileText size={24} />} active={currentView === "ledger"} onClick={() => { setCurrentView("ledger"); loadReports(); }} />
+          <NavItem icon={<Globe size={24} />} onClick={() => handleFeatureClick("Web Search")} />
+          <NavItem icon={<Terminal size={24} />} onClick={() => handleFeatureClick("Terminal")} />
+          <div className="mt-auto">
+            <NavItem icon={<LogOut size={24} />} onClick={() => handleFeatureClick("Logout")} />
+          </div>
+        </nav>
+
+        {/* Main Content Area */}
+        <div className="flex-1 flex flex-col gap-6 overflow-hidden">
+          {currentView === "ledger" ? (
+            <div className="flex-1 glass-panel relative overflow-hidden flex flex-col">
+              <div className="p-6 border-b border-white-08">
+                <h1 className="research-report-title">Research <span className="accent-text">Ledger</span></h1>
+                <p className="nav-link-muted">Browse and manage historical intelligence reports.</p>
+              </div>
+              <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                {loadingReports ? (
+                  <div className="flex justify-center items-center h-full">
+                    <Loader2 size={32} className="animate-spin text-white-30" />
+                  </div>
+                ) : reportsList.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full opacity-50">
+                    <FileText size={48} className="mb-4" />
+                    <p>No historical reports found.</p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {reportsList.map((report) => (
+                      <div key={report.id} className="ledger-card">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="font-bold text-lg">{report.company}</h3>
+                          <span className="text-xs opacity-50">{new Date(report.createdAt).toLocaleDateString()}</span>
+                        </div>
+                        <p className="text-sm opacity-70 mb-4 line-clamp-2">{report.question}</p>
+                        <div className="flex items-center justify-between mt-auto pt-4 border-t border-white-08">
+                          <div className="flex gap-3 text-xs opacity-60">
+                            <span><FileText size={12} className="inline mr-1" /> {report.documentCount} sources</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <button 
+                              className="ledger-btn ledger-btn-danger" 
+                              onClick={() => deleteReport(report.id)}
+                              title="Delete report"
+                              aria-label="Delete report"
+                            >
+                              <Trash2 size={14} />
+                            </button>
+                            <button className="ledger-btn ledger-btn-primary" onClick={() => loadPastReport(report.id)}>
+                              View <ArrowRight size={14} />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Agent Pipeline Tracker */}
+          {(running || events.length > 0) && (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="glass-panel p-4 flex-none"
+            >
+              <div className="pipeline-tracker">
+                {PIPELINE_STAGES.map((stage, i) => {
+                  const meta = AGENT_META[stage];
+                  const isCompleted = completedNodes.has(stage);
+                  const isActive = activeNode === stage;
+                  return (
+                    <div key={stage} className="pipeline-stage-wrapper">
+                      <motion.div
+                        animate={isActive ? { scale: [1, 1.1, 1] } : {}}
+                        transition={{ duration: 1.5, repeat: Infinity }}
+                        className={cn(
+                          "pipeline-stage",
+                          isCompleted && "pipeline-completed",
+                          isActive && "pipeline-active",
+                          !isCompleted && !isActive && "pipeline-pending"
+                        )}
+                      >
+                        {isCompleted ? (
+                          <CheckCircle2 size={14} />
+                        ) : isActive ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Circle size={14} />
+                        )}
+                        <span>{meta?.label || stage}</span>
+                      </motion.div>
+                      {i < PIPELINE_STAGES.length - 1 && (
+                        <div className={cn("pipeline-connector", isCompleted && "pipeline-connector-active")} />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+          )}
+
+          {/* Main Research View */}
+          <div className="flex-1 glass-panel relative overflow-hidden">
+            <div className="absolute inset-0 overflow-y-auto custom-scrollbar">
+              <div className="flex flex-col min-h-full p-8 pb-16">
+                <AnimatePresence mode="wait">
+                {errorMsg ? (
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="h-full flex flex-col items-center justify-center text-center gap-4"
+                  >
+                    <div className="empty-state-icon border-bear">
+                      <span className="text-[2.5rem]">⚠️</span>
+                    </div>
+                    <h2 className="research-report-title text-bear">Analysis Error</h2>
+                    <p className="nav-link-muted">{errorMsg}</p>
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={resetAll}
+                      className="btn-action"
+                    >
+                      <RotateCcw size={16} /> Try Again
+                    </motion.button>
+                  </motion.div>
+                ) : finalReport ? (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 30 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ type: "spring", damping: 20 }}
+                    className="w-full"
+                  >
+                    {/* Report Header Bar */}
+                    <div className="report-header-bar">
+                      <h1 className="research-report-title">Intelligence Report: <span className="accent-text">{company}</span></h1>
+                      <div className="report-actions">
+                        <div className="report-meta-badge">
+                          <Clock size={14} /> {elapsed}s
+                        </div>
+                        <div className="report-meta-badge">
+                          <Brain size={14} /> {completedAgents} agents
+                        </div>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={copyReport}
+                          className="btn-action"
+                        >
+                          <Copy size={14} /> {copied ? "Copied!" : "Copy"}
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={resetAll}
+                          className="btn-action"
+                        >
+                          <RotateCcw size={14} /> New Research
+                        </motion.button>
+                      </div>
+                    </div>
+                    <div className="report-content">
+                      <ReactMarkdown
+                        components={{
+                          h1: ({ children }) => <h1>{children}</h1>,
+                          h2: ({ children }) => <h2>{children}</h2>,
+                          h3: ({ children }) => <h3>{children}</h3>,
+                          strong: ({ children }) => <strong>{children}</strong>,
+                          em: ({ children }) => <em>{children}</em>,
+                          blockquote: ({ children }) => <blockquote>{children}</blockquote>,
+                          code: ({ className, children, ...props }) => {
+                            const isInline = !className;
+                            return isInline
+                              ? <code {...props}>{children}</code>
+                              : <pre><code className={className} {...props}>{children}</code></pre>;
+                          },
+                          table: ({ children }) => <table>{children}</table>,
+                          thead: ({ children }) => <thead>{children}</thead>,
+                          tbody: ({ children }) => <tbody>{children}</tbody>,
+                          tr: ({ children }) => <tr>{children}</tr>,
+                          th: ({ children }) => <th>{children}</th>,
+                          td: ({ children }) => <td>{children}</td>,
+                          a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>,
+                          hr: () => <hr />,
+                        }}
+                      >
+                        {finalReport}
+                      </ReactMarkdown>
+                    </div>
+                  </motion.div>
+                ) : (
+                  <motion.div 
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="h-full flex flex-col items-center justify-center text-center"
+                  >
+                    {running ? (
+                      <div className="loading-container">
+                        <div className="spinner-outer">
+                          <motion.div 
+                             animate={{ rotate: 360 }}
+                             transition={{ duration: 4, repeat: Infinity, ease: "linear" }}
+                             className="spinner-ring"
+                          />
+                          <div className="spinner-icon">
+                            <Brain size={42} />
+                          </div>
+                        </div>
+                        <h2 className="loading-title">Analyzing <span className="accent-text">{company}</span>...</h2>
+                        <p className="nav-link-muted">
+                          {activeNode === "generate_queries" && "Generating research queries..."}
+                          {activeNode === "retrieve_documents" && "Scanning local & web intelligence..."}
+                          {activeNode === "bull_analyst" && "🟢 Bull Analyst building upside case..."}
+                          {activeNode === "bear_analyst" && "🔴 Bear Analyst identifying risks..."}
+                          {activeNode === "critic" && "🔍 Critic scoring analysis quality..."}
+                          {activeNode === "synthesize" && "⚡ Executive synthesizing final verdict..."}
+                          {!activeNode && "NexusFlow agents are processing..."}
+                        </p>
+                        <div className="timer-badge">
+                          <Clock size={14} /> {elapsed}s elapsed
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center gap-6">
+                        <motion.div 
+                          animate={{ y: [0, -10, 0] }}
+                          transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                          className="empty-state-icon"
+                        >
+                          <Search size={40} />
+                        </motion.div>
+                        <div>
+                          <h2 className="research-report-title">Ready for Intelligence</h2>
+                          <p className="nav-link-muted max-w-md mx-auto">Enter a company name and research question below to initiate autonomous multi-agent analysis.</p>
+                        </div>
+                        <div className="hero-badges">
+                          <span className="hero-badge badge-bull">🟢 Bull Analyst</span>
+                          <span className="hero-badge badge-bear">🔴 Bear Analyst</span>
+                          <span className="hero-badge badge-critic">🔍 Quality Critic</span>
+                          <span className="hero-badge badge-executive">⚡ Executive Synthesis</span>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+              </div>
+            </div>
+          </div>
+
+          {/* Bottom Input Area */}
+          <div className="glass-panel p-4 flex-none">
+             <div className="flex items-center gap-4 w-full">
+               <div className="flex-none w-48">
+                 <input 
+                   className="input-glass"
+                   value={company}
+                   onChange={(e) => setCompany(e.target.value)}
+                   placeholder="Company / Ticker"
+                   id="company-input"
+                 />
+               </div>
+               <div className="flex-1 relative">
+                  <input 
+                    className="input-glass input-with-button"
+                    value={question}
+                    onChange={(e) => setQuestion(e.target.value)}
+                    placeholder="Ask a research question..."
+                    onKeyDown={(e) => e.key === "Enter" && run()}
+                    id="question-input"
+                  />
+                  <button 
+                    onClick={run}
+                    disabled={!canRun || running}
+                    title="Run analysis"
+                    aria-label="Run analysis"
+                    className="btn-send"
+                    id="run-button"
+                  >
+                    {running ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                  </button>
+               </div>
+             </div>
+          </div>
+            </>
+          )}
+        </div>
+
+        {/* Right Sidebar */}
+        <div className="w-80 flex-none flex flex-col gap-6 overflow-hidden">
+          <div className="flex-1 glass-panel overflow-hidden flex flex-col">
+            <div className="thoughts-container-header p-5 flex-none">
+              <h3 className="flex items-center justify-between">
+                <span className="flex items-center gap-2">
+                  <Zap size={18} className="accent-text" />
+                  Agent Thoughts
+                </span>
+                {running ? <span className="badge-live">Live</span> : <span className="badge-live badge-idle">Idle</span>}
+              </h3>
+            </div>
+            <div 
+              ref={scrollRef}
+              className="flex-1 overflow-y-auto custom-scrollbar min-h-0"
+            >
+              <div className="flex flex-col gap-4 p-5 pb-10">
+                <AnimatePresence>
+                  {events.map((e, i) => {
+                    const meta = AGENT_META[e.node] || { label: e.node, icon: "🤖", colorClass: "", cardClass: "" };
+                    const isActive = running && i === events.length - 1;
+                    
+                    return (
+                      <motion.div 
+                        key={i}
+                        initial={{ opacity: 0, x: 20, scale: 0.95 }}
+                        animate={{ opacity: 1, x: 0, scale: 1 }}
+                        className={cn("thought-card", meta.cardClass, isActive && "thought-active")}
+                      >
+                        <div className="thought-header">
+                          <span className={cn("thought-node-name", meta.colorClass)}>
+                            {meta.icon} {meta.label}
+                          </span>
+                          <span>{new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                        </div>
+                        <div className="thought-text">
+                          {formatEventMessage(e)}
+                        </div>
+                      </motion.div>
+                    );
+                  })}
+                </AnimatePresence>
+                {events.length === 0 && !running && (
+                  <div className="thoughts-empty-state">
+                    <p>Awaiting research initiation...</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Mini Stats Card */}
+          <div className="glass-panel p-6 stats-card flex-none">
+             <div className="flex items-center justify-between">
+                <span className="stats-label">Model Intelligence</span>
+                <span className="accent-text stats-model-name">Command R+</span>
+             </div>
+             <div className="progress-bar-container">
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: running ? `${Math.min(completedAgents * 16, 80)}%` : finalReport ? "100%" : "0%" }}
+                  transition={{ duration: 1.5, ease: "easeOut" }}
+                  className="progress-bar-fill"
+                />
+             </div>
+             <div className="stats-grid">
+                <div className="stat-item">
+                  <div className="stat-value">{completedAgents}<span className="stat-total">/6</span></div>
+                  <div className="stat-caption">Agents</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{events.reduce((acc, e) => acc + (e.update?.documents?.length || 0), 0) || "—"}</div>
+                  <div className="stat-caption">Sources</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{elapsed || "—"}<span className="stat-total">s</span></div>
+                  <div className="stat-caption">Time</div>
+                </div>
+                <div className="stat-item">
+                  <div className="stat-value">{finalReport ? "✅" : running ? "⏳" : "—"}</div>
+                  <div className="stat-caption">Status</div>
+                </div>
+             </div>
+          </div>
+        </div>
+      </main>
+    </div>
+  );
+}
+
+function NavItem({ icon, active = false, onClick }: { icon: React.ReactNode; active?: boolean; onClick?: () => void }) {
+  return (
+    <motion.div 
+      whileHover={{ x: 2 }}
+      className={cn("nav-item", active && "active")}
+      onClick={onClick}
+    >
+      {icon}
+    </motion.div>
+  );
+}
+
+function formatEventMessage(event: AgentEvent) {
+  const { node, update } = event;
+  if (node === "generate_queries") {
+    return `Expanding research into: ${update.queries?.join(", ") || "..."}`;
+  }
+  if (node === "retrieve_documents") {
+    return `Collected ${update.documents?.length || 0} documents from local and web intelligence sources.`;
+  }
+  if (node === "bull_analyst") {
+    const preview = update.bullAnalysis?.slice(0, 120) || "Building upside case...";
+    return `${preview}...`;
+  }
+  if (node === "bear_analyst") {
+    const preview = update.bearAnalysis?.slice(0, 120) || "Identifying risks and red flags...";
+    return `${preview}...`;
+  }
+  if (node === "critic") {
+    const preview = update.criticReview?.slice(0, 120) || "Scoring analysis quality...";
+    return `${preview}...`;
+  }
+  if (node === "synthesize") {
+    return "Weighing all arguments to deliver final executive verdict.";
+  }
+  return `Agent ${node} is processing...`;
+}

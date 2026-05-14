@@ -1,0 +1,29 @@
+{
+  "name": "multi-agent-investment-research",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run -ws build",
+    "dev:api": "npm run -w apps/api dev",
+    "dev:web": "npm run -w apps/web dev",
+    "lint": "npm run -ws lint",
+    "test": "npm run -ws test"
+  },
+  "dependencies": {
+    "@langchain/anthropic": "^1.3.29",
+    "@langchain/community": "^1.1.28",
+    "@langchain/core": "^1.1.45",
+    "@langchain/openai": "^1.4.5",
+    "@langchain/tavily": "^1.2.0",
+    "@langchain/textsplitters": "^1.0.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.38.0",
+    "lucide-react": "^1.14.0",
+    "tailwind-merge": "^3.5.0",
+    "zod": "^4.4.3"
+  }
+}

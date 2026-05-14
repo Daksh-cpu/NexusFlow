@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: nexusflow-api
+    runtime: docker
+    dockerfilePath: infra/docker/Dockerfile.api
+    plan: free
+    envVars:
+      - key: COHERE_API_KEY
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: QDRANT_URL
+        sync: false
+      - key: QDRANT_API_KEY
+        sync: false
+      - key: COHERE_RERANK_MODEL
+        value: rerank-english-v3.0
+      - key: RERANKER_PROVIDER
+        value: cohere
