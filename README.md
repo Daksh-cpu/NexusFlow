@@ -15,36 +15,38 @@ NexusFlow is a **production-grade multi-agent research platform** that uses an a
 
 ### The 6-Agent Debate Architecture
 
-```
-┌─────────────────┐
-│  User Question   │
-└────────┬────────┘
+```text
+ ┌───────────────┐
+ │ User Question │
+ └───────┬───────┘
          │
-   ┌─────▼─────┐
-   │ 🔍 Query   │  Generates 3 targeted research angles
-   │   Engine   │
-   └─────┬─────┘
+ ┌───────▼───────┐
+ │  🔍 Query     │  Generates 3 targeted research angles
+ │    Engine     │
+ └───────┬───────┘
          │
-   ┌─────▼─────┐
-   │ 📡 Hybrid  │  Qdrant (Local) + Tavily (Web)
-   │  Search    │  → 3-Tier Reranking Pipeline
-   └──┬─────┬──┘
-      │     │
- ┌────▼──┐ ┌▼────┐    ← Parallel Execution
- │ 🟢    │ │ 🔴  │
- │ BULL  │ │BEAR │    Builds upside case & investigates risks
- │Analyst│ │Analyst│
- └───┬───┘ └──┬──┘
-     │        │
-   ┌─▼────────▼─┐
-   │ ⚖️ Quality  │  Scores analysis /20 (Citations, Logic, Risks)
-   │   Critic   │  Enforces strict self-correction
-   └─────┬──────┘
+ ┌───────▼───────┐
+ │  📡 Hybrid    │  Qdrant (Local) + Tavily (Web)
+ │    Search     │  → 3-Tier Reranking Pipeline
+ └──┬─────────┬──┘
+    │         │
+┌───▼───┐ ┌───▼───┐    ← Parallel Execution
+│ 🟢    │ │ 🔴    │
+│ BULL  │ │ BEAR  │    Builds upside case & investigates risks
+│Analyst│ │Analyst│
+└───┬───┘ └───┬───┘
+    │         │
+    └────┬────┘
          │
-   ┌─────▼───────┐
-   │ ⚡ Executive │  Final Verdict: INVEST / WAIT / SELL
-   │ Synthesizer │  + Confidence Score + Action Plan
-   └─────────────┘
+ ┌───────▼───────┐
+ │  ⚖️ Quality   │  Scores analysis /20 (Citations, Logic, Risks)
+ │    Critic     │  Enforces strict self-correction
+ └───────┬───────┘
+         │
+ ┌───────▼───────┐
+ │  ⚡ Executive  │  Final Verdict: INVEST / WAIT / SELL
+ │  Synthesizer  │  + Confidence Score + Action Plan
+ └───────────────┘
 ```
 
 ---
