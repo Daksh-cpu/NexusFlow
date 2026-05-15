@@ -11,6 +11,7 @@
     "test": "echo no-tests"
   },
   "dependencies": {
+    "@langchain/community": "^1.1.28",
     "@packages/graph": "0.1.0",
     "@packages/retrieval": "0.1.0",
     "@packages/shared": "0.1.0",

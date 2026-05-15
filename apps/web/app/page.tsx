@@ -6,6 +6,7 @@ import { Search, Send, Activity, Brain, FileText, Settings, LogOut, Terminal, La
 import ReactMarkdown from "react-markdown";
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
+import { SignInButton, UserButton, SignedIn, SignedOut, useUser, useClerk } from "@clerk/nextjs";
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -18,14 +19,17 @@ const AGENT_META: Record<string, { label: string; icon: string; colorClass: stri
   retrieve_documents: { label: "Intelligence", icon: "📡", colorClass: "", cardClass: "" },
   bull_analyst: { label: "Bull Analyst", icon: "🟢", colorClass: "node-bull", cardClass: "thought-bull" },
   bear_analyst: { label: "Bear Analyst", icon: "🔴", colorClass: "node-bear", cardClass: "thought-bear" },
+  data_analyst: { label: "Data Analyst", icon: "📊", colorClass: "text-blue-400", cardClass: "border-blue-500 bg-blue-500/10" },
   critic: { label: "Critic", icon: "🔍", colorClass: "node-critic", cardClass: "thought-critic" },
   synthesize: { label: "Executive", icon: "⚡", colorClass: "node-executive", cardClass: "thought-executive" },
 };
 
 // Pipeline stage order for the visual tracker
-const PIPELINE_STAGES = ["generate_queries", "retrieve_documents", "bull_analyst", "bear_analyst", "critic", "synthesize"];
+const PIPELINE_STAGES = ["generate_queries", "retrieve_documents", "bull_analyst", "bear_analyst", "data_analyst", "critic", "synthesize"];
 
 export default function Page() {
+  const { isSignedIn } = useUser();
+  const { signOut } = useClerk();
   const [company, setCompany] = useState("");
   const [question, setQuestion] = useState("");
   const [events, setEvents] = useState<AgentEvent[]>([]);
@@ -41,6 +45,7 @@ export default function Page() {
   const [loadingReports, setLoadingReports] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [streamingText, setStreamingText] = useState<Record<string, string>>({});
 
   const loadReports = async () => {
     setLoadingReports(true);
@@ -108,6 +113,10 @@ export default function Page() {
   const completedNodes = useMemo(() => new Set(events.map(e => e.node)), [events]);
 
   const run = useCallback(() => {
+    if (!isSignedIn) {
+      alert("Please sign in to run an autonomous analysis.");
+      return;
+    }
     if (!canRun || running) return;
     
     setRunning(true);
@@ -123,10 +132,25 @@ export default function Page() {
     const source = new EventSource(streamUrl);
     let receivedFinal = false;
 
+    source.addEventListener("token", (evt) => {
+      const payload = JSON.parse((evt as MessageEvent).data);
+      setActiveNode(payload.node);
+      setStreamingText((prev) => ({
+        ...prev,
+        [payload.node]: (prev[payload.node] || "") + payload.text
+      }));
+    });
+
     source.addEventListener("agent", (evt) => {
       const payload = JSON.parse((evt as MessageEvent).data);
       setEvents((prev) => [...prev, payload]);
       setActiveNode(payload.node);
+      // Clear streaming text for this node since it's now complete
+      setStreamingText((prev) => {
+        const next = { ...prev };
+        delete next[payload.node];
+        return next;
+      });
     });
 
     source.addEventListener("final", (evt) => {
@@ -160,6 +184,7 @@ export default function Page() {
     setFinalReport("");
     setEvents([]);
     setElapsed(0);
+    setStreamingText({});
     setErrorMsg("");
     setActiveNode("");
   };
@@ -179,7 +204,7 @@ export default function Page() {
   const completedAgents = completedNodes.size;
 
   return (
-    <div className="relative min-h-screen flex flex-col text-white overflow-hidden">
+    <div className="relative h-screen flex flex-col text-white overflow-hidden">
       <div className="ambient-bg" />
       <div className="glow-overlay" />
       
@@ -199,14 +224,26 @@ export default function Page() {
         </div>
         
         <div className="nav-links">
-          <span className="nav-link" onClick={() => handleFeatureClick("Search Tool")}>Search Tool</span>
-          <span className="nav-link" onClick={() => handleFeatureClick("Research Ledger")}>Research Ledger</span>
-          <span className="nav-link" onClick={() => handleFeatureClick("Data Analysis")}>Data Analysis</span>
-          <div className="user-profile">
+          <span className="nav-link" onClick={() => setCurrentView("dashboard")}>Search Tool</span>
+          <span className="nav-link" onClick={() => { setCurrentView("ledger"); loadReports(); }}>Research Ledger</span>
+          <span className="nav-link" onClick={() => setCurrentView("dashboard")}>Data Analysis</span>
+          <div className="user-profile flex items-center gap-3">
             <Settings size={18} className="nav-link" onClick={() => handleFeatureClick("Settings")} />
-            <motion.div whileHover={{ scale: 1.1 }} className="profile-btn" onClick={() => handleFeatureClick("Profile")}>
-              <User size={18} />
-            </motion.div>
+            <SignedIn>
+              <UserButton appearance={{ elements: { userButtonAvatarBox: "w-8 h-8 rounded-full border border-white/20" } }} />
+            </SignedIn>
+            <SignedOut>
+              <SignInButton mode="modal">
+                <button 
+                  className="btn-signin"
+                  aria-label="Sign in to your account"
+                >
+                  <User size={16} className="signin-icon text-white" />
+                  <span>Sign In</span>
+                  <ArrowRight size={14} className="signin-icon signin-icon-arrow opacity-50" />
+                </button>
+              </SignInButton>
+            </SignedOut>
           </div>
         </div>
       </header>
@@ -214,12 +251,14 @@ export default function Page() {
       <main className="flex-1 flex overflow-hidden p-6 gap-6 z-10">
         {/* Left Sidebar */}
         <nav className="glass-panel sidebar-nav flex-none">
-          <NavItem icon={<Activity size={24} />} active={currentView === "dashboard"} onClick={() => setCurrentView("dashboard")} />
-          <NavItem icon={<FileText size={24} />} active={currentView === "ledger"} onClick={() => { setCurrentView("ledger"); loadReports(); }} />
-          <NavItem icon={<Globe size={24} />} onClick={() => handleFeatureClick("Web Search")} />
-          <NavItem icon={<Terminal size={24} />} onClick={() => handleFeatureClick("Terminal")} />
+          <NavItem icon={<Activity size={24} />} title="Dashboard" active={currentView === "dashboard"} onClick={() => setCurrentView("dashboard")} />
+          <NavItem icon={<FileText size={24} />} title="Research Ledger" active={currentView === "ledger"} onClick={() => { setCurrentView("ledger"); loadReports(); }} />
+          <NavItem icon={<Globe size={24} />} title="Web Search" onClick={() => handleFeatureClick("Web Search")} />
+          <NavItem icon={<Terminal size={24} />} title="Terminal" onClick={() => handleFeatureClick("Terminal")} />
           <div className="mt-auto">
-            <NavItem icon={<LogOut size={24} />} onClick={() => handleFeatureClick("Logout")} />
+            <SignedIn>
+              <NavItem icon={<LogOut size={24} />} title="Logout" onClick={() => signOut()} />
+            </SignedIn>
           </div>
         </nav>
 
@@ -320,9 +359,9 @@ export default function Page() {
           )}
 
           {/* Main Research View */}
-          <div className="flex-1 glass-panel relative overflow-hidden">
-            <div className="absolute inset-0 overflow-y-auto custom-scrollbar">
-              <div className="flex flex-col min-h-full p-8 pb-16">
+          <div className="flex-1 glass-panel">
+            <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar">
+              <div className="p-8 pb-32">
                 <AnimatePresence mode="wait">
                 {errorMsg ? (
                   <motion.div
@@ -406,6 +445,29 @@ export default function Page() {
                       >
                         {finalReport}
                       </ReactMarkdown>
+
+                      {/* Render Data Analyst Chart if exists */}
+                      {(() => {
+                        const dataEvent = events.find(e => e.node === "data_analyst");
+                        if (dataEvent && dataEvent.update?.dataAnalysisChart) {
+                          return (
+                            <div style={{ marginTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
+                              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
+                                <span style={{ color: '#60a5fa' }}>📊</span> Quantitative Analysis
+                              </h2>
+                              <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '16px', padding: '0.5rem', boxShadow: '0 0 20px rgba(59,130,246,0.15)' }}>
+                                <img 
+                                  src={dataEvent.update.dataAnalysisChart} 
+                                  alt="Data Analyst Visualization" 
+                                  style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '12px', display: 'block' }}
+                                />
+                              </div>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })()}
+
                     </div>
                   </motion.div>
                 ) : (
@@ -432,6 +494,7 @@ export default function Page() {
                           {activeNode === "retrieve_documents" && "Scanning local & web intelligence..."}
                           {activeNode === "bull_analyst" && "🟢 Bull Analyst building upside case..."}
                           {activeNode === "bear_analyst" && "🔴 Bear Analyst identifying risks..."}
+                          {activeNode === "data_analyst" && "📊 Data Analyst executing quantitative python models..."}
                           {activeNode === "critic" && "🔍 Critic scoring analysis quality..."}
                           {activeNode === "synthesize" && "⚡ Executive synthesizing final verdict..."}
                           {!activeNode && "NexusFlow agents are processing..."}
@@ -457,6 +520,7 @@ export default function Page() {
                           <span className="hero-badge badge-bull">🟢 Bull Analyst</span>
                           <span className="hero-badge badge-bear">🔴 Bear Analyst</span>
                           <span className="hero-badge badge-critic">🔍 Quality Critic</span>
+                          <span className="hero-badge text-blue-400 border-blue-500/30 bg-blue-500/10">📊 Data Analyst</span>
                           <span className="hero-badge badge-executive">⚡ Executive Synthesis</span>
                         </div>
                       </div>
@@ -489,16 +553,31 @@ export default function Page() {
                     onKeyDown={(e) => e.key === "Enter" && run()}
                     id="question-input"
                   />
-                  <button 
-                    onClick={run}
-                    disabled={!canRun || running}
-                    title="Run analysis"
-                    aria-label="Run analysis"
-                    className="btn-send"
-                    id="run-button"
-                  >
-                    {running ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
-                  </button>
+                  <SignedIn>
+                    <button 
+                      onClick={run}
+                      disabled={!canRun || running}
+                      title="Run analysis"
+                      aria-label="Run analysis"
+                      className="btn-send"
+                      id="run-button"
+                    >
+                      {running ? <Loader2 size={18} className="animate-spin" /> : <Send size={18} />}
+                    </button>
+                  </SignedIn>
+                  <SignedOut>
+                    <SignInButton mode="modal">
+                      <button 
+                        title="Sign in to run analysis"
+                        aria-label="Sign in"
+                        className="btn-send"
+                        id="run-button-signed-out"
+                        onClick={(e) => e.preventDefault()}
+                      >
+                        <User size={18} />
+                      </button>
+                    </SignInButton>
+                  </SignedOut>
                </div>
              </div>
           </div>
@@ -507,8 +586,8 @@ export default function Page() {
         </div>
 
         {/* Right Sidebar */}
-        <div className="w-80 flex-none flex flex-col gap-6 overflow-hidden">
-          <div className="flex-1 glass-panel overflow-hidden flex flex-col">
+        <div className="w-80 flex-none flex flex-col gap-6 min-h-0">
+          <div className="flex-1 glass-panel flex flex-col min-h-0">
             <div className="thoughts-container-header p-5 flex-none">
               <h3 className="flex items-center justify-between">
                 <span className="flex items-center gap-2">
@@ -520,7 +599,7 @@ export default function Page() {
             </div>
             <div 
               ref={scrollRef}
-              className="flex-1 overflow-y-auto custom-scrollbar min-h-0"
+              className="flex-1 min-h-0 overflow-y-auto custom-scrollbar"
             >
               <div className="flex flex-col gap-4 p-5 pb-10">
                 <AnimatePresence>
@@ -548,7 +627,30 @@ export default function Page() {
                     );
                   })}
                 </AnimatePresence>
-                {events.length === 0 && !running && (
+                {/* Live streaming text for currently active node */}
+                {Object.entries(streamingText).map(([nodeName, text]) => {
+                  const meta = AGENT_META[nodeName] || { label: nodeName, icon: "🤖", colorClass: "", cardClass: "" };
+                  return (
+                    <motion.div 
+                      key={`stream-${nodeName}`}
+                      initial={{ opacity: 0, x: 20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      className={cn("thought-card thought-active", meta.cardClass)}
+                    >
+                      <div className="thought-header">
+                        <span className={cn("thought-node-name", meta.colorClass)}>
+                          {meta.icon} {meta.label}
+                        </span>
+                        <span style={{ color: 'var(--accent)', fontSize: '10px', fontWeight: 800 }}>STREAMING</span>
+                      </div>
+                      <div className="thought-text">
+                        {text.slice(-200)}
+                        <span style={{ animation: 'pulse-glow 1s infinite', color: 'var(--accent)' }}>▌</span>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+                {events.length === 0 && !running && Object.keys(streamingText).length === 0 && (
                   <div className="thoughts-empty-state">
                     <p>Awaiting research initiation...</p>
                   </div>
@@ -573,7 +675,7 @@ export default function Page() {
              </div>
              <div className="stats-grid">
                 <div className="stat-item">
-                  <div className="stat-value">{completedAgents}<span className="stat-total">/6</span></div>
+                 <div className="stat-value">{completedAgents}<span className="stat-total">/7</span></div>
                   <div className="stat-caption">Agents</div>
                 </div>
                 <div className="stat-item">
@@ -596,12 +698,13 @@ export default function Page() {
   );
 }
 
-function NavItem({ icon, active = false, onClick }: { icon: React.ReactNode; active?: boolean; onClick?: () => void }) {
+function NavItem({ icon, active = false, onClick, title }: { icon: React.ReactNode; active?: boolean; onClick?: () => void; title?: string }) {
   return (
     <motion.div 
       whileHover={{ x: 2 }}
       className={cn("nav-item", active && "active")}
       onClick={onClick}
+      aria-label={title}
     >
       {icon}
     </motion.div>
@@ -622,6 +725,10 @@ function formatEventMessage(event: AgentEvent) {
   }
   if (node === "bear_analyst") {
     const preview = update.bearAnalysis?.slice(0, 120) || "Identifying risks and red flags...";
+    return `${preview}...`;
+  }
+  if (node === "data_analyst") {
+    const preview = update.dataAnalysisOutput?.slice(0, 120) || "Executing quantitative analysis in E2B sandbox...";
     return `${preview}...`;
   }
   if (node === "critic") {

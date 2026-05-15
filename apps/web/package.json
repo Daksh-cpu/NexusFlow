@@ -10,6 +10,7 @@
     "test": "echo no-tests"
   },
   "dependencies": {
+    "@clerk/nextjs": "^5.7.6",
     "ai": "^6.0.176",
     "clsx": "^2.1.1",
     "framer-motion": "^12.38.0",

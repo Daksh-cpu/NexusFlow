@@ -8,6 +8,8 @@ export interface ResearchState {
   documents: Document[];
   bullAnalysis: string;
   bearAnalysis: string;
+  dataAnalysisOutput: string;
+  dataAnalysisChart: string;
   criticReview: string;
   synthesis: string;
   reportId: string;
@@ -31,6 +33,14 @@ export const researchStateSchema: StateGraphArgs<ResearchState>["channels"] = {
     default: () => "",
   },
   bearAnalysis: {
+    value: (_x: string, y: string) => y,
+    default: () => "",
+  },
+  dataAnalysisOutput: {
+    value: (_x: string, y: string) => y,
+    default: () => "",
+  },
+  dataAnalysisChart: {
     value: (_x: string, y: string) => y,
     default: () => "",
   },

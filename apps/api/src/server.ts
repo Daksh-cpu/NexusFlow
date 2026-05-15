@@ -1,7 +1,7 @@
 import "./env.js"; // CRITICAL: Load env before anything else
 import cors from "cors";
 import express from "express";
-import { graph } from "@packages/graph";
+import { graph, executeTerminalCommand, getFastLLM } from "@packages/graph";
 import { RerankerService } from "@packages/retrieval";
 import { AnalyzeRequestSchema, IngestRequestSchema } from "@packages/shared";
 import { HumanMessage } from "@langchain/core/messages";
@@ -10,6 +10,8 @@ import { saveReport, listReports, getReport, deleteReport } from "./reports.js";
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: "10mb" }));
+
+import { SystemMessage } from "@langchain/core/messages";
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, version: "3.0.0", agents: ["bull_analyst", "bear_analyst", "critic", "executive"] });
@@ -110,20 +112,50 @@ app.get("/analyze/stream", async (req, res) => {
       messages: [new HumanMessage(question)],
     };
 
-    const stream = await graph.stream(initialState);
+    const stream = graph.streamEvents(initialState, { version: "v2" });
     let finalReport = "";
     let reportData: any = {};
+    let currentNodeName = "";
 
-    for await (const chunk of stream) {
-      for (const [nodeName, stateUpdate] of Object.entries(chunk)) {
-        send("agent", { node: nodeName, update: stateUpdate });
-        const update = stateUpdate as any;
-        if (update.synthesis) finalReport = update.synthesis;
-        if (update.bullAnalysis) reportData.bullAnalysis = update.bullAnalysis;
-        if (update.bearAnalysis) reportData.bearAnalysis = update.bearAnalysis;
-        if (update.criticReview) reportData.criticReview = update.criticReview;
-        if (update.reportId) reportData.reportId = update.reportId;
-        if (update.documents) reportData.documentCount = update.documents.length;
+    for await (const event of stream) {
+      const kind = event.event;
+
+      // Track which node is currently running
+      if (kind === "on_chain_start" && event.metadata?.langgraph_node) {
+        const nodeName = event.metadata.langgraph_node;
+        if (nodeName !== currentNodeName) {
+          currentNodeName = nodeName;
+        }
+      }
+
+      // Stream individual LLM tokens to the frontend
+      if (kind === "on_chat_model_stream" && currentNodeName) {
+        const chunk = event.data?.chunk;
+        if (chunk?.content) {
+          const text = typeof chunk.content === "string" ? chunk.content : "";
+          if (text) {
+            send("token", { node: currentNodeName, text });
+          }
+        }
+      }
+
+      // Node completion — send full state update
+      if (kind === "on_chain_end" && event.metadata?.langgraph_node && event.data?.output) {
+        const nodeName = event.metadata.langgraph_node;
+        const output = event.data.output;
+        
+        // Only send for our actual graph nodes, skip internal chains
+        if (["generate_queries", "retrieve_documents", "bull_analyst", "bear_analyst", "data_analyst", "critic", "synthesize"].includes(nodeName)) {
+          send("agent", { node: nodeName, update: output });
+          if (output.synthesis) finalReport = output.synthesis;
+          if (output.bullAnalysis) reportData.bullAnalysis = output.bullAnalysis;
+          if (output.bearAnalysis) reportData.bearAnalysis = output.bearAnalysis;
+          if (output.criticReview) reportData.criticReview = output.criticReview;
+          if (output.reportId) reportData.reportId = output.reportId;
+          if (output.documents) reportData.documentCount = output.documents.length;
+          if (output.dataAnalysisOutput) reportData.dataAnalysisOutput = output.dataAnalysisOutput;
+          if (output.dataAnalysisChart) reportData.dataAnalysisChart = output.dataAnalysisChart;
+        }
       }
     }
 
@@ -176,6 +208,59 @@ app.delete("/reports/:id", (req, res) => {
   const deleted = deleteReport(req.params.id);
   if (!deleted) return res.status(404).json({ error: "Report not found" });
   res.json({ ok: true });
+});
+
+// ─────────────────────────────────────────────
+// Terminal Feature Endpoint
+// ─────────────────────────────────────────────
+app.post("/terminal/execute", async (req, res) => {
+  const { code } = req.body;
+  if (!code) {
+    return res.status(400).json({ error: "Code is required" });
+  }
+  try {
+    const result = await executeTerminalCommand(code);
+    res.json(result);
+  } catch (error) {
+    console.error("Terminal execution error:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// ─────────────────────────────────────────────
+// Web Search Feature Endpoint
+// ─────────────────────────────────────────────
+app.post("/search", async (req, res) => {
+  const { query } = req.body;
+  if (!query) {
+    return res.status(400).json({ error: "Query is required" });
+  }
+  
+  try {
+    // Direct fetch to avoid langchain/community peer dependency issues
+    const tavilyRes = await fetch('https://api.tavily.com/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query, max_results: 5 })
+    });
+    const tavilyData = await tavilyRes.json();
+    const searchResults = tavilyData.results?.map((r: any) => `Title: ${r.title}\nURL: ${r.url}\nContent: ${r.content}`).join('\n\n') || "No results found.";
+    
+    const llm = getFastLLM();
+    const prompt = new SystemMessage(`You are a direct, highly accurate intelligence search assistant. 
+Answer the following query using ONLY the provided search results. Include inline markdown links to the sources [Source Name](url).
+
+Query: ${query}
+
+Search Results:
+${searchResults}`);
+    
+    const response = await llm.invoke([prompt, new HumanMessage(query)]);
+    res.json({ answer: response.content });
+  } catch (error) {
+    console.error("Web search error:", error);
+    res.status(500).json({ error: String(error) });
+  }
 });
 
 const port = Number(process.env.PORT || 4000);

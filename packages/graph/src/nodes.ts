@@ -3,24 +3,73 @@ import { ChatCohere } from "@langchain/cohere";
 import { HumanMessage, SystemMessage } from "@langchain/core/messages";
 import { createRetrievalPipeline, getVectorStore, getWebSearchTool } from "@packages/retrieval";
 import { Document } from "@langchain/core/documents";
+import { Sandbox } from "@e2b/code-interpreter";
 
-let _llm: ChatCohere | null = null;
-const getLLM = () => {
-  if (!_llm) {
-    _llm = new ChatCohere({
+let _heavyLlm: ChatCohere | null = null;
+const getHeavyLLM = () => {
+  if (!_heavyLlm) {
+    _heavyLlm = new ChatCohere({
       model: "command-r-plus-08-2024",
       temperature: 0,
+      streaming: true,
       apiKey: process.env.COHERE_API_KEY,
     });
   }
-  return _llm;
+  return _heavyLlm;
+};
+
+let _fastLlm: ChatCohere | null = null;
+export const getFastLLM = () => {
+  if (!_fastLlm) {
+    _fastLlm = new ChatCohere({
+      model: "command-r-08-2024", // Lightning fast model for sub-agents
+      temperature: 0,
+      streaming: true,
+      apiKey: process.env.COHERE_API_KEY,
+    });
+  }
+  return _fastLlm;
+};
+
+// Singleton Persistent E2B Sandbox
+let warmSandbox: Sandbox | null = null;
+
+// Expose a helper to let the Terminal UI interact with the sandbox directly
+export const executeTerminalCommand = async (code: string) => {
+  if (!warmSandbox) {
+    warmSandbox = await Sandbox.create({ 
+      apiKey: process.env.E2B_API_KEY, 
+      timeoutMs: 3600000 // 1 hour
+    });
+  }
+  
+  const execution = await warmSandbox.runCode(code);
+  let chartBase64 = null;
+
+  if (execution.results.length > 0) {
+    for (const result of execution.results) {
+      if (result.png) {
+        chartBase64 = `data:image/png;base64,${result.png}`;
+        break;
+      } else if (result.jpeg) {
+        chartBase64 = `data:image/jpeg;base64,${result.jpeg}`;
+        break;
+      }
+    }
+  }
+
+  return {
+    stdout: execution.logs.stdout.join("\n"),
+    stderr: execution.logs.stderr.join("\n"),
+    chart: chartBase64,
+  };
 };
 
 // ─────────────────────────────────────────────
 // Node 1: Generate Research Queries
 // ─────────────────────────────────────────────
 export const generateQueriesNode = async (state: ResearchState): Promise<Partial<ResearchState>> => {
-  const llm = getLLM();
+  const llm = getFastLLM();
   const lastMessage = state.messages[state.messages.length - 1];
   
   const prompt = new SystemMessage(`Generate 3 focused, diverse search queries for the user's request. Each query should target a different angle:
@@ -96,10 +145,107 @@ export const retrieveDocumentsNode = async (state: ResearchState): Promise<Parti
 };
 
 // ─────────────────────────────────────────────
-// Node 3A: Bull Analyst (Upside Case)
+// Node 3: Data Analyst (E2B Python Sandbox)
+// ─────────────────────────────────────────────
+export const dataAnalystNode = async (state: ResearchState): Promise<Partial<ResearchState>> => {
+  // We wrap the entire node in a strict 45-second timeout to prevent it from hanging the parallel LangGraph pipeline
+  const timeoutPromise = new Promise<Partial<ResearchState>>((resolve) => 
+    setTimeout(() => resolve({ dataAnalysisOutput: "Quantitative analysis timed out after 45 seconds." }), 45000)
+  );
+
+  const executeNode = async (): Promise<Partial<ResearchState>> => {
+    const llm = getFastLLM();
+    const userQuery = state.messages[0];
+    const docsText = (state.documents || []).map((d, i) => `[${i + 1}] ${d.pageContent}`).join("\n\n");
+
+    // Step 1: Prompt LLM to write Python code for a chart
+    const prompt = new SystemMessage(`You are a quantitative data analyst. Your job is to extract numerical data related to the user's query and write a Python script using Seaborn to visualize it.
+    
+  STRICT RULES:
+  1. ONLY return the raw Python code. Do not wrap it in markdown block quotes (\`\`\`python). Just the code.
+  2. You MUST use Seaborn to create a line chart or bar chart (unless the prompt specifically requests otherwise). 
+  3. DO NOT use plt.show(). The E2B sandbox will automatically capture any generated figures.
+  4. Keep the design beautiful and modern. Use a dark background theme (plt.style.use('dark_background')).
+  5. The code should print a brief text summary of the data findings to stdout.
+
+  Evidence:
+  ${docsText}`);
+
+    let code = "";
+    try {
+      const response = await llm.invoke([prompt, userQuery]);
+      code = response.content.toString().replace(/```python/g, "").replace(/```/g, "").trim();
+      console.log("Data Analyst generated Python code:\n", code);
+    } catch (e) {
+      console.error("Data Analyst LLM failed:", e);
+      return { dataAnalysisOutput: "Failed to generate python code." };
+    }
+
+    // Step 2: Execute code in E2B Sandbox
+    let stdout = "";
+    let chartBase64 = "";
+
+    try {
+      if (!warmSandbox) {
+        console.log("Spinning up NEW E2B Sandbox...");
+        warmSandbox = await Sandbox.create({ 
+          apiKey: process.env.E2B_API_KEY, 
+          timeoutMs: 3600000 // Keep alive for 1 hour 
+        });
+      } else {
+        console.log("Reusing warm E2B Sandbox...");
+      }
+      
+      // Matplotlib/Seaborn is pre-installed in the default E2B code-interpreter image
+      const execution = await warmSandbox.runCode(code);
+    
+    stdout = execution.logs.stdout.join("\n");
+    if (execution.logs.stderr.length > 0) {
+      console.warn("E2B stderr:", execution.logs.stderr.join("\n"));
+    }
+
+    if (execution.results.length > 0) {
+      for (const result of execution.results) {
+        if (result.png) {
+          chartBase64 = `data:image/png;base64,${result.png}`;
+          break; // Take the first generated chart
+        } else if (result.jpeg) {
+          chartBase64 = `data:image/jpeg;base64,${result.jpeg}`;
+          break;
+        }
+      }
+    }
+    
+    if (!stdout && chartBase64) {
+      stdout = "Successfully generated data visualization.";
+    } else if (!stdout && !chartBase64) {
+      stdout = "Analysis ran successfully but generated no outputs.";
+    }
+
+  } catch (e) {
+    console.error("E2B execution failed:", e);
+    stdout = `Execution Error: ${e instanceof Error ? e.message : String(e)}`;
+    // If it failed, the sandbox might be dead or unresponsive. Nullify it.
+    if (warmSandbox) {
+      warmSandbox.kill().catch(() => {});
+      warmSandbox = null;
+    }
+  }
+
+  return { 
+    dataAnalysisOutput: stdout,
+    dataAnalysisChart: chartBase64
+  };
+  };
+
+  return Promise.race([executeNode(), timeoutPromise]);
+};
+
+// ─────────────────────────────────────────────
+// Node 4A: Bull Analyst (Upside Case)
 // ─────────────────────────────────────────────
 export const bullAnalystNode = async (state: ResearchState): Promise<Partial<ResearchState>> => {
-  const llm = getLLM();
+  const llm = getFastLLM();
   const userQuery = state.messages[0];
   const docsText = (state.documents || []).map((d, i) => `[${i + 1}] ${d.pageContent}`).join("\n\n");
 
@@ -130,10 +276,10 @@ ${docsText}`);
 };
 
 // ─────────────────────────────────────────────
-// Node 3B: Bear Analyst (Downside Case)
+// Node 4B: Bear Analyst (Downside Case)
 // ─────────────────────────────────────────────
 export const bearAnalystNode = async (state: ResearchState): Promise<Partial<ResearchState>> => {
-  const llm = getLLM();
+  const llm = getFastLLM();
   const userQuery = state.messages[0];
   const docsText = (state.documents || []).map((d, i) => `[${i + 1}] ${d.pageContent}`).join("\n\n");
 
@@ -166,10 +312,10 @@ ${docsText}`);
 };
 
 // ─────────────────────────────────────────────
-// Node 4: Critic Agent (Self-Correction)
+// Node 5: Critic Agent (Self-Correction)
 // ─────────────────────────────────────────────
 export const criticNode = async (state: ResearchState): Promise<Partial<ResearchState>> => {
-  const llm = getLLM();
+  const llm = getFastLLM();
 
   const prompt = new SystemMessage(`You are the QUALITY ASSURANCE CRITIC on an elite research team.
 
@@ -218,10 +364,10 @@ ${state.bearAnalysis || "None provided."}`);
 };
 
 // ─────────────────────────────────────────────
-// Node 5: Executive Synthesis (Final Verdict)
+// Node 6: Executive Synthesis (Final Verdict)
 // ─────────────────────────────────────────────
 export const synthesizeNode = async (state: ResearchState): Promise<Partial<ResearchState>> => {
-  const llm = getLLM();
+  const llm = getHeavyLLM();
   const userQuery = state.messages[0];
 
   const prompt = new SystemMessage(`You are the CHIEF INVESTMENT STRATEGIST at a top-tier hedge fund. Produce a decisive intelligence report.
