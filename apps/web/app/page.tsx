@@ -40,12 +40,23 @@ export default function Page() {
   const [elapsed, setElapsed] = useState<number>(0);
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  const [currentView, setCurrentView] = useState<"dashboard" | "ledger">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "ledger" | "search" | "terminal">("dashboard");
   const [reportsList, setReportsList] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const [streamingText, setStreamingText] = useState<Record<string, string>>({});
+
+  // Terminal State
+  const [terminalInput, setTerminalInput] = useState("");
+  const [terminalLogs, setTerminalLogs] = useState<{type: 'cmd' | 'stdout' | 'stderr' | 'chart', content: string}[]>([]);
+  const [terminalRunning, setTerminalRunning] = useState(false);
+  const terminalScrollRef = useRef<HTMLDivElement>(null);
+
+  // Web Search State
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResult, setSearchResult] = useState("");
+  const [searchRunning, setSearchRunning] = useState(false);
 
   const loadReports = async () => {
     setLoadingReports(true);
@@ -81,6 +92,49 @@ export default function Page() {
     }
   };
 
+  const runTerminalCommand = async () => {
+    if (!terminalInput.trim() || terminalRunning) return;
+    const cmd = terminalInput;
+    setTerminalInput("");
+    setTerminalLogs(prev => [...prev, { type: 'cmd', content: cmd }]);
+    setTerminalRunning(true);
+    
+    try {
+      const res = await fetch("http://localhost:4000/terminal/execute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code: cmd })
+      });
+      const data = await res.json();
+      
+      if (data.stdout) setTerminalLogs(prev => [...prev, { type: 'stdout', content: data.stdout }]);
+      if (data.stderr) setTerminalLogs(prev => [...prev, { type: 'stderr', content: data.stderr }]);
+      if (data.chart) setTerminalLogs(prev => [...prev, { type: 'chart', content: data.chart }]);
+    } catch (e) {
+      setTerminalLogs(prev => [...prev, { type: 'stderr', content: "Failed to connect to Terminal Sandbox." }]);
+    }
+    setTerminalRunning(false);
+  };
+
+  const runWebSearch = async () => {
+    if (!searchQuery.trim() || searchRunning) return;
+    setSearchRunning(true);
+    setSearchResult("");
+    
+    try {
+      const res = await fetch("http://localhost:4000/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: searchQuery })
+      });
+      const data = await res.json();
+      setSearchResult(data.answer || "No response received.");
+    } catch (e) {
+      setSearchResult("Error: Could not complete search.");
+    }
+    setSearchRunning(false);
+  };
+
   useEffect(() => {
     if (scrollRef.current) {
       // Small timeout allows framer-motion to render the new item's layout
@@ -95,6 +149,12 @@ export default function Page() {
       return () => clearTimeout(timeout);
     }
   }, [events]);
+
+  useEffect(() => {
+    if (terminalScrollRef.current) {
+      terminalScrollRef.current.scrollTop = terminalScrollRef.current.scrollHeight;
+    }
+  }, [terminalLogs]);
 
   // Live timer
   useEffect(() => {
@@ -253,8 +313,8 @@ export default function Page() {
         <nav className="glass-panel sidebar-nav flex-none">
           <NavItem icon={<Activity size={24} />} title="Dashboard" active={currentView === "dashboard"} onClick={() => setCurrentView("dashboard")} />
           <NavItem icon={<FileText size={24} />} title="Research Ledger" active={currentView === "ledger"} onClick={() => { setCurrentView("ledger"); loadReports(); }} />
-          <NavItem icon={<Globe size={24} />} title="Web Search" onClick={() => handleFeatureClick("Web Search")} />
-          <NavItem icon={<Terminal size={24} />} title="Terminal" onClick={() => handleFeatureClick("Terminal")} />
+          <NavItem icon={<Globe size={24} />} title="Web Search" active={currentView === "search"} onClick={() => setCurrentView("search")} />
+          <NavItem icon={<Terminal size={24} />} title="Terminal" active={currentView === "terminal"} onClick={() => setCurrentView("terminal")} />
           <div className="mt-auto">
             <SignedIn>
               <NavItem icon={<LogOut size={24} />} title="Logout" onClick={() => signOut()} />
@@ -264,7 +324,7 @@ export default function Page() {
 
         {/* Main Content Area */}
         <div className="flex-1 flex flex-col gap-6 overflow-hidden">
-          {currentView === "ledger" ? (
+          {currentView === "ledger" && (
             <div className="flex-1 glass-panel relative overflow-hidden flex flex-col">
               <div className="p-6 border-b border-white-08">
                 <h1 className="research-report-title">Research <span className="accent-text">Ledger</span></h1>
@@ -313,7 +373,8 @@ export default function Page() {
                 )}
               </div>
             </div>
-          ) : (
+          )}
+          {currentView === "dashboard" && (
             <>
               {/* Agent Pipeline Tracker */}
           {(running || events.length > 0) && (
@@ -582,6 +643,84 @@ export default function Page() {
              </div>
           </div>
             </>
+          )}
+
+          {currentView === "terminal" && (
+            <div className="flex-1 glass-panel relative overflow-hidden flex flex-col p-6">
+              <h1 className="research-report-title mb-6">Cloud <span className="accent-text">Terminal</span></h1>
+              <div className="terminal-window flex-1">
+                <div className="terminal-header">
+                  <Terminal size={14} /> nexus@cloud-sandbox:~$
+                </div>
+                <div className="terminal-body custom-scrollbar" ref={terminalScrollRef}>
+                  <div className="terminal-log">
+                    <span className="terminal-log-stdout">Welcome to NexusFlow Interactive Terminal. Type Python or Bash commands to execute in the E2B Sandbox.</span>
+                  </div>
+                  {terminalLogs.map((log, i) => (
+                    <div key={i} className="terminal-log">
+                      {log.type === 'cmd' && <span className="terminal-log-command"><span className="terminal-prompt">$</span> {log.content}</span>}
+                      {log.type === 'stdout' && <span className="terminal-log-stdout">{log.content}</span>}
+                      {log.type === 'stderr' && <span className="terminal-log-stderr">{log.content}</span>}
+                      {log.type === 'chart' && <img src={log.content} alt="Output Chart" className="mt-2 rounded" style={{maxHeight: '300px'}} />}
+                    </div>
+                  ))}
+                  <div className="terminal-input-container">
+                    <span className="terminal-prompt">$</span>
+                    <input 
+                      type="text" 
+                      className="terminal-input-field" 
+                      value={terminalInput}
+                      onChange={(e) => setTerminalInput(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && runTerminalCommand()}
+                      placeholder="Enter command..."
+                      disabled={terminalRunning}
+                      autoFocus
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {currentView === "search" && (
+            <div className="flex-1 glass-panel relative overflow-y-auto custom-scrollbar flex flex-col p-6">
+              <h1 className="research-report-title mb-6">Intelligence <span className="accent-text">Web Search</span></h1>
+              <div className="websearch-window">
+                <div className="websearch-input-wrapper">
+                  <input 
+                    className="input-glass flex-1"
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    placeholder="Enter a specific question for instant intel..."
+                    onKeyDown={(e) => e.key === "Enter" && runWebSearch()}
+                  />
+                  <button 
+                    className="websearch-btn"
+                    onClick={runWebSearch}
+                    disabled={searchRunning || !searchQuery.trim()}
+                  >
+                    {searchRunning ? <Loader2 size={18} className="animate-spin mx-auto" /> : "Search Intel"}
+                  </button>
+                </div>
+                <div className="websearch-results">
+                  {searchRunning ? (
+                    <div className="flex flex-col items-center justify-center opacity-50 h-full">
+                      <Loader2 size={32} className="animate-spin mb-4 text-white-30" />
+                      <p>Consulting sources...</p>
+                    </div>
+                  ) : searchResult ? (
+                    <div className="report-content">
+                      <ReactMarkdown>{searchResult}</ReactMarkdown>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center opacity-50 h-full">
+                      <Globe size={48} className="mb-4" />
+                      <p>Run a targeted web search.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
         </div>
 
