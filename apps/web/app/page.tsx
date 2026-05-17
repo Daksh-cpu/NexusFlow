@@ -661,7 +661,7 @@ export default function Page() {
                       {log.type === 'cmd' && <span className="terminal-log-command"><span className="terminal-prompt">$</span> {log.content}</span>}
                       {log.type === 'stdout' && <span className="terminal-log-stdout">{log.content}</span>}
                       {log.type === 'stderr' && <span className="terminal-log-stderr">{log.content}</span>}
-                      {log.type === 'chart' && <img src={log.content} alt="Output Chart" className="mt-2 rounded" style={{maxHeight: '300px'}} />}
+                      {log.type === 'chart' && <img src={log.content} alt="Output Chart" className="mt-2 rounded terminal-chart" />}
                     </div>
                   ))}
                   <div className="terminal-input-container">

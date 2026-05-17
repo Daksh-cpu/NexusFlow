@@ -116,10 +116,7 @@ h1, h2, h3 {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(255, 255, 255, 0.25);
 }
-.custom-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
-}
+
 
 /* Dashboard Specific Classes */
 .ambient-bg {
@@ -1407,4 +1404,8 @@ body::-webkit-scrollbar {
   padding: 2rem;
   color: white;
   min-height: 300px;
+}
+
+.terminal-chart {
+  max-height: 300px;
 }
