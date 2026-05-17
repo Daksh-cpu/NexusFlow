@@ -1409,3 +1409,43 @@ body::-webkit-scrollbar {
 .terminal-chart {
   max-height: 300px;
 }
+
+/* ─────────────────────────────────────────── */
+/* Data Analyst Feature UI                     */
+/* ─────────────────────────────────────────── */
+.data-analyst-container {
+  margin-top: 2rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  padding-top: 1.5rem;
+}
+
+.data-analyst-title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  font-family: 'Outfit', sans-serif;
+  color: white;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.data-analyst-title-icon {
+  color: #60a5fa;
+}
+
+.data-analyst-chart-wrapper {
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(59, 130, 246, 0.3);
+  border-radius: 16px;
+  padding: 0.5rem;
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+}
+
+.data-analyst-chart-img {
+  width: 100%;
+  max-height: 400px;
+  object-fit: contain;
+  border-radius: 12px;
+  display: block;
+}

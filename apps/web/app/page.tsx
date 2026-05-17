@@ -512,15 +512,15 @@ export default function Page() {
                         const dataEvent = events.find(e => e.node === "data_analyst");
                         if (dataEvent && dataEvent.update?.dataAnalysisChart) {
                           return (
-                            <div style={{ marginTop: '2rem', borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1.5rem' }}>
-                              <h2 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit, sans-serif', color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem' }}>
-                                <span style={{ color: '#60a5fa' }}>📊</span> Quantitative Analysis
+                            <div className="data-analyst-container">
+                              <h2 className="data-analyst-title">
+                                <span className="data-analyst-title-icon">📊</span> Quantitative Analysis
                               </h2>
-                              <div style={{ background: 'rgba(0,0,0,0.4)', border: '1px solid rgba(59,130,246,0.3)', borderRadius: '16px', padding: '0.5rem', boxShadow: '0 0 20px rgba(59,130,246,0.15)' }}>
+                              <div className="data-analyst-chart-wrapper">
                                 <img 
                                   src={dataEvent.update.dataAnalysisChart} 
                                   alt="Data Analyst Visualization" 
-                                  style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', borderRadius: '12px', display: 'block' }}
+                                  className="data-analyst-chart-img"
                                 />
                               </div>
                             </div>
