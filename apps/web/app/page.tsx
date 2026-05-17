@@ -780,11 +780,11 @@ export default function Page() {
                         <span className={cn("thought-node-name", meta.colorClass)}>
                           {meta.icon} {meta.label}
                         </span>
-                        <span style={{ color: 'var(--accent)', fontSize: '10px', fontWeight: 800 }}>STREAMING</span>
+                        <span className="streaming-badge">STREAMING</span>
                       </div>
                       <div className="thought-text">
                         {text.slice(-200)}
-                        <span style={{ animation: 'pulse-glow 1s infinite', color: 'var(--accent)' }}>▌</span>
+                        <span className="streaming-cursor">▌</span>
                       </div>
                     </motion.div>
                   );
