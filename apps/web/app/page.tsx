@@ -400,7 +400,7 @@ export default function Page() {
           <span className="nav-link" onClick={() => { setCurrentView("ledger"); loadReports(); }}>Research Ledger</span>
           <span className="nav-link" onClick={() => setCurrentView("dashboard")}>Data Analysis</span>
           <span className="nav-link" onClick={() => setCurrentView("terminal")}>Terminal</span>
-          <span className="nav-link" onClick={() => setCurrentView("simulator")}>Simulator</span>
+          <span className="nav-link" onClick={() => setCurrentView("simulator")}>Simulation</span>
           <div className="user-profile flex items-center gap-3">
             <Settings size={18} className="nav-link" onClick={() => handleFeatureClick("Settings")} />
             <SignedIn>
