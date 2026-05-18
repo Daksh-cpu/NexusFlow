@@ -122,15 +122,38 @@ export default function Page() {
     setSearchResult("");
     
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      
       const res = await fetch("http://localhost:4000/search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery })
+        body: JSON.stringify({ query: searchQuery }),
+        signal: controller.signal
       });
+      clearTimeout(timeout);
+      
+      if (!res.ok) {
+        const errData = await res.json().catch(() => ({}));
+        setSearchResult(`**Search Error (${res.status}):** ${errData.error || res.statusText}. Make sure your API server is running and TAVILY_API_KEY + COHERE_API_KEY are set in your .env file.`);
+        setSearchRunning(false);
+        return;
+      }
+      
       const data = await res.json();
-      setSearchResult(data.answer || "No response received.");
-    } catch (e) {
-      setSearchResult("Error: Could not complete search.");
+      if (data.error) {
+        setSearchResult(`**Backend Error:** ${data.error}`);
+      } else if (data.answer && typeof data.answer === "string" && data.answer.trim()) {
+        setSearchResult(data.answer);
+      } else {
+        setSearchResult("**No results found.** The search completed but returned no content. Try rephrasing your query.");
+      }
+    } catch (e: any) {
+      if (e.name === "AbortError") {
+        setSearchResult("**Timeout:** The search took too long (>30s). The backend may be slow or unresponsive.");
+      } else {
+        setSearchResult(`**Connection Error:** Could not reach the API server at localhost:4000. Make sure the backend is running with \`npm run dev\` in the \`apps/api\` directory.`);
+      }
     }
     setSearchRunning(false);
   };

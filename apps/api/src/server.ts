@@ -236,16 +236,34 @@ app.post("/search", async (req, res) => {
     return res.status(400).json({ error: "Query is required" });
   }
   
+  if (!process.env.TAVILY_API_KEY) {
+    return res.status(500).json({ error: "TAVILY_API_KEY is not set in environment variables." });
+  }
+  
   try {
-    // Direct fetch to avoid langchain/community peer dependency issues
+    // Step 1: Fetch search results from Tavily
     const tavilyRes = await fetch('https://api.tavily.com/search', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ api_key: process.env.TAVILY_API_KEY, query, max_results: 5 })
     });
-    const tavilyData = await tavilyRes.json();
-    const searchResults = tavilyData.results?.map((r: any) => `Title: ${r.title}\nURL: ${r.url}\nContent: ${r.content}`).join('\n\n') || "No results found.";
     
+    if (!tavilyRes.ok) {
+      const errText = await tavilyRes.text().catch(() => "Unknown Tavily error");
+      console.error("Tavily API error:", tavilyRes.status, errText);
+      return res.status(502).json({ error: `Tavily API returned ${tavilyRes.status}: ${errText}` });
+    }
+    
+    const tavilyData = await tavilyRes.json();
+    const results = tavilyData.results || [];
+    
+    if (results.length === 0) {
+      return res.json({ answer: "No search results were found for this query. Try a different search term." });
+    }
+    
+    const searchResults = results.map((r: any) => `Title: ${r.title}\nURL: ${r.url}\nContent: ${r.content}`).join('\n\n');
+    
+    // Step 2: Summarize with LLM
     const llm = getFastLLM();
     const prompt = new SystemMessage(`You are a direct, highly accurate intelligence search assistant. 
 Answer the following query using ONLY the provided search results. Include inline markdown links to the sources [Source Name](url).
@@ -256,7 +274,9 @@ Search Results:
 ${searchResults}`);
     
     const response = await llm.invoke([prompt, new HumanMessage(query)]);
-    res.json({ answer: response.content });
+    const answer = typeof response.content === "string" ? response.content : JSON.stringify(response.content);
+    
+    res.json({ answer: answer || "The AI model returned an empty response. Please try again." });
   } catch (error) {
     console.error("Web search error:", error);
     res.status(500).json({ error: String(error) });
