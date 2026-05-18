@@ -16,6 +16,8 @@
   --neutral-glow: rgba(167, 139, 250, 0.25);
   --critic: #f59e0b;
   --critic-glow: rgba(245, 158, 11, 0.25);
+  --data: #60a5fa;
+  --data-glow: rgba(96, 165, 250, 0.25);
 }
 
 html {
@@ -1157,6 +1159,12 @@ body::-webkit-scrollbar {
   border-color: var(--neutral);
   color: var(--neutral);
   box-shadow: 0 0 12px var(--neutral-glow);
+}
+
+.hero-badge.badge-data {
+  border-color: var(--data);
+  color: var(--data);
+  box-shadow: 0 0 12px var(--data-glow);
 }
 
 .stat-total {

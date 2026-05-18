@@ -581,7 +581,7 @@ export default function Page() {
                           <span className="hero-badge badge-bull">🟢 Bull Analyst</span>
                           <span className="hero-badge badge-bear">🔴 Bear Analyst</span>
                           <span className="hero-badge badge-critic">🔍 Quality Critic</span>
-                          <span className="hero-badge text-blue-400 border-blue-500/30 bg-blue-500/10">📊 Data Analyst</span>
+                          <span className="hero-badge badge-data">📊 Data Analyst</span>
                           <span className="hero-badge badge-executive">⚡ Executive Synthesis</span>
                         </div>
                       </div>
