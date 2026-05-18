@@ -40,7 +40,7 @@ export default function Page() {
   const [elapsed, setElapsed] = useState<number>(0);
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  const [currentView, setCurrentView] = useState<"dashboard" | "ledger" | "search" | "terminal">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "ledger" | "search" | "terminal" | "simulator">("dashboard");
   const [reportsList, setReportsList] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -57,6 +57,17 @@ export default function Page() {
   const [searchQuery, setSearchQuery] = useState("");
   const [searchResult, setSearchResult] = useState("");
   const [searchRunning, setSearchRunning] = useState(false);
+
+  // Simulator State
+  const [simScenario, setSimScenario] = useState("");
+  const [simVariables, setSimVariables] = useState<{name: string; label: string; min: number; max: number; default: number; step: number; unit: string; value: number}[]>([]);
+  const [simChart, setSimChart] = useState("");
+  const [simStats, setSimStats] = useState<{mean: number; std: number; p5: number; p95: number} | null>(null);
+  const [simCommentary, setSimCommentary] = useState<{researcher: string; analyst: string; critic: string; executive: string} | null>(null);
+  const [simLoading, setSimLoading] = useState(false);
+  const [simInitialized, setSimInitialized] = useState(false);
+  const [simUpdating, setSimUpdating] = useState(false);
+  const simDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
   const loadReports = async () => {
     setLoadingReports(true);
@@ -156,6 +167,84 @@ export default function Page() {
       }
     }
     setSearchRunning(false);
+  };
+
+  // Simulator: Initialize
+  const initSimulation = async () => {
+    if (!simScenario.trim() || simLoading) return;
+    setSimLoading(true);
+    setSimInitialized(false);
+    setSimChart("");
+    setSimStats(null);
+    setSimCommentary(null);
+    setSimVariables([]);
+
+    try {
+      const res = await fetch("http://localhost:4000/simulate/init", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ scenario: simScenario }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        console.error("Sim init failed:", err);
+        setSimLoading(false);
+        return;
+      }
+      const data = await res.json();
+      setSimVariables(data.variables || []);
+      setSimChart(data.chart || "");
+      setSimStats(data.stats || null);
+      setSimCommentary(data.commentary || null);
+      setSimInitialized(true);
+    } catch (e) {
+      console.error("Sim init error:", e);
+    }
+    setSimLoading(false);
+  };
+
+  // Simulator: Update on slider change (with debounced commentary)
+  const updateSimulation = async (updatedVars: typeof simVariables) => {
+    setSimVariables(updatedVars);
+    setSimUpdating(true);
+
+    // Build variables object for the API
+    const varsObj: Record<string, number> = {};
+    updatedVars.forEach(v => { varsObj[v.name] = v.value; });
+
+    try {
+      const res = await fetch("http://localhost:4000/simulate/update", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ variables: varsObj }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.chart) setSimChart(data.chart);
+        if (data.stats) setSimStats(data.stats);
+      }
+    } catch (e) {
+      console.error("Sim update error:", e);
+    }
+    setSimUpdating(false);
+
+    // Debounced commentary update
+    if (simDebounceRef.current) clearTimeout(simDebounceRef.current);
+    simDebounceRef.current = setTimeout(async () => {
+      try {
+        const cRes = await fetch("http://localhost:4000/simulate/commentary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ scenario: simScenario, variables: updatedVars, stats: simStats }),
+        });
+        if (cRes.ok) {
+          const commentary = await cRes.json();
+          setSimCommentary(commentary);
+        }
+      } catch (e) {
+        console.error("Commentary update error:", e);
+      }
+    }, 800);
   };
 
   useEffect(() => {
@@ -338,6 +427,7 @@ export default function Page() {
           <NavItem icon={<FileText size={24} />} title="Research Ledger" active={currentView === "ledger"} onClick={() => { setCurrentView("ledger"); loadReports(); }} />
           <NavItem icon={<Globe size={24} />} title="Web Search" active={currentView === "search"} onClick={() => setCurrentView("search")} />
           <NavItem icon={<Terminal size={24} />} title="Terminal" active={currentView === "terminal"} onClick={() => setCurrentView("terminal")} />
+          <NavItem icon={<Zap size={24} />} title="Simulator" active={currentView === "simulator"} onClick={() => setCurrentView("simulator")} />
           <div className="mt-auto">
             <SignedIn>
               <NavItem icon={<LogOut size={24} />} title="Logout" onClick={() => signOut()} />
@@ -742,6 +832,175 @@ export default function Page() {
                     </div>
                   )}
                 </div>
+              </div>
+            </div>
+          )}
+
+          {currentView === "simulator" && (
+            <div className="flex-1 glass-panel relative overflow-y-auto custom-scrollbar flex flex-col p-6">
+              <h1 className="research-report-title mb-6">Alternate Reality <span className="accent-text">Simulator</span></h1>
+              <div className="simulator-window">
+                {/* Scenario Input */}
+                <div className="simulator-scenario-row">
+                  <input 
+                    className="input-glass flex-1"
+                    value={simScenario}
+                    onChange={(e) => setSimScenario(e.target.value)}
+                    placeholder='e.g. "Simulate what happens to Tesla if lithium prices spike 200% and Model 2 is delayed 3 years"'
+                    onKeyDown={(e) => e.key === "Enter" && initSimulation()}
+                  />
+                  <button 
+                    className="simulator-launch-btn"
+                    onClick={initSimulation}
+                    disabled={simLoading || !simScenario.trim()}
+                  >
+                    {simLoading ? <Loader2 size={18} className="animate-spin" /> : "Launch Sim"}
+                  </button>
+                </div>
+
+                {/* Loading State */}
+                {simLoading && (
+                  <div className="simulator-loading-overlay">
+                    <div className="spinner-outer">
+                      <motion.div 
+                        animate={{ rotate: 360 }}
+                        transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                        className="spinner-ring"
+                      />
+                      <div className="spinner-icon"><Zap size={36} /></div>
+                    </div>
+                    <p>Parsing scenario, generating Monte Carlo model, and running initial simulation...</p>
+                  </div>
+                )}
+
+                {/* Initialized State: Sliders + Chart + Agents */}
+                {simInitialized && !simLoading && (
+                  <>
+                    {/* Sliders + Chart Grid */}
+                    <div className="simulator-grid">
+                      {/* Left: Sliders + Stats */}
+                      <div>
+                        <div className="simulator-sliders-panel">
+                          {simVariables.map((v, i) => (
+                            <div key={v.name} className="simulator-slider-group">
+                              <div className="simulator-slider-header">
+                                <span className="simulator-slider-label">{v.label}</span>
+                                <span className="simulator-slider-value">{v.value}{v.unit}</span>
+                              </div>
+                              <input 
+                                type="range"
+                                className="simulator-slider-input"
+                                min={v.min}
+                                max={v.max}
+                                step={v.step}
+                                value={v.value}
+                                onChange={(e) => {
+                                  const newVars = [...simVariables];
+                                  newVars[i] = { ...newVars[i], value: Number(e.target.value) };
+                                  updateSimulation(newVars);
+                                }}
+                              />
+                            </div>
+                          ))}
+                        </div>
+
+                        {/* Stats Panel */}
+                        {simStats && (
+                          <div className="simulator-stats-panel">
+                            <div className="simulator-stats-title">Simulation Output</div>
+                            <div className="simulator-stats-grid">
+                              <div className="simulator-stat-item">
+                                <span className="simulator-stat-label">Mean</span>
+                                <span className="simulator-stat-value">{simStats.mean.toFixed(2)}%</span>
+                              </div>
+                              <div className="simulator-stat-item">
+                                <span className="simulator-stat-label">Std Dev</span>
+                                <span className="simulator-stat-value">{simStats.std.toFixed(2)}%</span>
+                              </div>
+                              <div className="simulator-stat-item">
+                                <span className="simulator-stat-label">5th Pctl</span>
+                                <span className="simulator-stat-value">{simStats.p5.toFixed(2)}%</span>
+                              </div>
+                              <div className="simulator-stat-item">
+                                <span className="simulator-stat-label">95th Pctl</span>
+                                <span className="simulator-stat-value">{simStats.p95.toFixed(2)}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Right: Chart */}
+                      <div className="simulator-chart-container">
+                        {simChart ? (
+                          <img src={simChart} alt="Simulation Chart" className="simulator-chart-img" />
+                        ) : (
+                          <div className="simulator-chart-placeholder">
+                            <Zap size={48} />
+                            <p>Chart will appear after simulation runs</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Agent Commentary Grid */}
+                    {simCommentary && (
+                      <div className="simulator-agents-grid">
+                        <div className="simulator-agent-card simulator-agent-card-researcher">
+                          <div className="simulator-agent-header">
+                            <span>📡</span>
+                            <span className="simulator-agent-name simulator-agent-name-researcher">Researcher</span>
+                          </div>
+                          <p className="simulator-agent-text">{simCommentary.researcher}</p>
+                        </div>
+                        <div className="simulator-agent-card simulator-agent-card-analyst">
+                          <div className="simulator-agent-header">
+                            <span>📊</span>
+                            <span className="simulator-agent-name simulator-agent-name-analyst">Analyst</span>
+                          </div>
+                          <p className="simulator-agent-text">{simCommentary.analyst}</p>
+                        </div>
+                        <div className="simulator-agent-card simulator-agent-card-critic">
+                          <div className="simulator-agent-header">
+                            <span>🔍</span>
+                            <span className="simulator-agent-name simulator-agent-name-critic">Critic</span>
+                          </div>
+                          <p className="simulator-agent-text">{simCommentary.critic}</p>
+                        </div>
+                        <div className="simulator-agent-card simulator-agent-card-executive">
+                          <div className="simulator-agent-header">
+                            <span>⚡</span>
+                            <span className="simulator-agent-name simulator-agent-name-executive">Executive</span>
+                          </div>
+                          <p className="simulator-agent-text">{simCommentary.executive}</p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Empty State */}
+                {!simInitialized && !simLoading && (
+                  <div className="simulator-empty-state">
+                    <motion.div 
+                      animate={{ y: [0, -8, 0] }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
+                      className="simulator-empty-icon"
+                    >
+                      <Zap size={40} />
+                    </motion.div>
+                    <div>
+                      <h2 className="research-report-title">What-If Engine</h2>
+                      <p className="nav-link-muted max-w-md mx-auto">Enter a hypothetical scenario above to generate an interactive Monte Carlo simulation with real-time sliders and agent commentary.</p>
+                    </div>
+                    <div className="hero-badges">
+                      <span className="hero-badge badge-data">📊 Monte Carlo</span>
+                      <span className="hero-badge badge-bull">🟢 Interactive Sliders</span>
+                      <span className="hero-badge badge-critic">🔍 Agent Commentary</span>
+                      <span className="hero-badge badge-executive">⚡ Real-Time Charts</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}

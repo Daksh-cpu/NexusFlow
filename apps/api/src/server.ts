@@ -283,10 +283,227 @@ ${searchResults}`);
   }
 });
 
+// ─────────────────────────────────────────────
+// Alternate Reality Simulator Endpoints
+// ─────────────────────────────────────────────
+
+// Step 1: Initialize simulation — parse scenario, generate Python model, run initial sim
+app.post("/simulate/init", async (req, res) => {
+  const { scenario } = req.body;
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario is required" });
+  }
+
+  try {
+    const llm = getFastLLM();
+
+    // Parse scenario into structured variables
+    const parsePrompt = new SystemMessage(`You are a quantitative scenario parser. Given a hypothetical scenario, extract 2-4 numeric variables that can be adjusted with sliders.
+
+Return ONLY valid JSON (no markdown, no code blocks) in this exact format:
+{
+  "company": "Company Name",
+  "variables": [
+    { "name": "variable_name", "label": "Human Label", "min": 0, "max": 300, "default": 200, "step": 10, "unit": "%" },
+    { "name": "another_var", "label": "Another Variable", "min": 0, "max": 10, "default": 3, "step": 1, "unit": "years" }
+  ],
+  "baseContext": "Brief 1-2 sentence context about current market conditions relevant to this scenario"
+}
+
+Rules:
+- Variable names must be valid Python identifiers (snake_case)
+- Choose sensible min/max ranges centered around the default
+- Unit should be one of: %, years, $, x, pts`);
+
+    const parseResponse = await llm.invoke([parsePrompt, new HumanMessage(scenario)]);
+    const parseText = typeof parseResponse.content === "string" ? parseResponse.content : JSON.stringify(parseResponse.content);
+
+    let parsed;
+    try {
+      // Extract JSON from potential markdown wrapping
+      const jsonMatch = parseText.match(/\{[\s\S]*\}/);
+      parsed = JSON.parse(jsonMatch ? jsonMatch[0] : parseText);
+    } catch {
+      return res.status(500).json({ error: "Failed to parse scenario into variables. Try rephrasing." });
+    }
+
+    // Generate Monte Carlo Python simulation code
+    const codePrompt = new SystemMessage(`You are a quantitative Python developer. Write a Monte Carlo simulation script for the given scenario.
+
+STRICT RULES:
+1. Return ONLY raw Python code. No markdown, no backticks.
+2. Define a function called simulate() that takes the scenario variables as keyword arguments plus trials=10000.
+3. The function should return a dict with keys: mean, std, p5, p95 (percentile values).
+4. Use numpy for random sampling and calculations.
+5. After defining simulate(), call it with the default values and print the results as JSON.
+6. Also generate TWO matplotlib charts:
+   - Figure 1: A histogram of the outcome distribution with a vertical line at the mean
+   - Figure 2: A line chart showing simulated price trajectory over 12 months
+7. Use plt.style.use('dark_background') for both charts.
+8. Use a modern color palette (use '#ff8c00' as the primary color).
+9. DO NOT use plt.show(). The sandbox captures figures automatically.
+10. Create a single figure with 2 subplots side by side.
+
+Scenario: ${scenario}
+Variables: ${JSON.stringify(parsed.variables)}
+Context: ${parsed.baseContext}`);
+
+    const codeResponse = await llm.invoke([codePrompt, new HumanMessage(scenario)]);
+    let code = typeof codeResponse.content === "string" ? codeResponse.content : String(codeResponse.content);
+    code = code.replace(/```python/g, "").replace(/```/g, "").trim();
+
+    // Execute in E2B sandbox
+    const result = await executeTerminalCommand(code);
+
+    // Parse stats from stdout
+    let stats = { mean: 0, std: 0, p5: 0, p95: 0 };
+    try {
+      const jsonMatch = (result.stdout || "").match(/\{[\s\S]*?\}/);
+      if (jsonMatch) {
+        const parsed_stats = JSON.parse(jsonMatch[0]);
+        stats = {
+          mean: Number(parsed_stats.mean) || 0,
+          std: Number(parsed_stats.std) || 0,
+          p5: Number(parsed_stats.p5) || 0,
+          p95: Number(parsed_stats.p95) || 0,
+        };
+      }
+    } catch {
+      console.warn("Could not parse simulation stats from stdout");
+    }
+
+    // Get initial agent commentary
+    let commentary = { researcher: "", analyst: "", critic: "", executive: "" };
+    try {
+      const commentaryRes = await getSimCommentary(llm, scenario, parsed.variables, stats);
+      commentary = commentaryRes;
+    } catch (e) {
+      console.warn("Initial commentary generation failed:", e);
+    }
+
+    res.json({
+      company: parsed.company,
+      variables: parsed.variables.map((v: any) => ({ ...v, value: v.default })),
+      chart: result.chart || "",
+      stats,
+      commentary,
+      code_initialized: true,
+    });
+  } catch (error) {
+    console.error("Simulation init error:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// Step 2: Update simulation with new slider values
+app.post("/simulate/update", async (req, res) => {
+  const { variables } = req.body;
+  if (!variables || typeof variables !== "object") {
+    return res.status(400).json({ error: "Variables object is required" });
+  }
+
+  try {
+    // Build a Python call to the already-defined simulate() function
+    const args = Object.entries(variables).map(([k, v]) => `${k}=${v}`).join(", ");
+    const code = `
+import json
+result = simulate(${args})
+print(json.dumps(result))
+
+# Regenerate charts with new values
+import matplotlib.pyplot as plt
+import numpy as np
+plt.style.use('dark_background')
+
+outcomes = [simulate(${args}, trials=1)['mean'] for _ in range(5000)]
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
+
+# Histogram
+ax1.hist(outcomes, bins=60, color='#ff8c00', alpha=0.8, edgecolor='#1a1a1a')
+ax1.axvline(np.mean(outcomes), color='white', linestyle='--', linewidth=1.5, label=f'Mean: {np.mean(outcomes):.2f}%')
+ax1.set_title('Outcome Distribution', fontsize=14, fontweight='bold', color='white')
+ax1.set_xlabel('Stock Price Change (%)', color='#aaa')
+ax1.set_ylabel('Frequency', color='#aaa')
+ax1.legend(fontsize=10)
+ax1.grid(alpha=0.15)
+
+# Trajectory
+months = np.arange(1, 13)
+base = 100
+trajectory = [base]
+monthly_change = np.mean(outcomes) / 12
+for m in months[:-1]:
+    trajectory.append(trajectory[-1] * (1 + monthly_change/100 + np.random.normal(0, abs(np.std(outcomes)/100/3))))
+ax2.plot(months, trajectory[:12], color='#ff8c00', linewidth=2.5)
+ax2.fill_between(months, [t * 0.95 for t in trajectory[:12]], [t * 1.05 for t in trajectory[:12]], alpha=0.15, color='#ff8c00')
+ax2.set_title('Projected 12-Month Trajectory', fontsize=14, fontweight='bold', color='white')
+ax2.set_xlabel('Month', color='#aaa')
+ax2.set_ylabel('Indexed Price', color='#aaa')
+ax2.grid(alpha=0.15)
+
+plt.tight_layout()
+`;
+
+    const result = await executeTerminalCommand(code);
+
+    let stats = { mean: 0, std: 0, p5: 0, p95: 0 };
+    try {
+      const jsonMatch = (result.stdout || "").match(/\{[\s\S]*?\}/);
+      if (jsonMatch) {
+        const parsed_stats = JSON.parse(jsonMatch[0]);
+        stats = {
+          mean: Number(parsed_stats.mean) || 0,
+          std: Number(parsed_stats.std) || 0,
+          p5: Number(parsed_stats.p5) || 0,
+          p95: Number(parsed_stats.p95) || 0,
+        };
+      }
+    } catch {
+      console.warn("Could not parse update stats from stdout");
+    }
+
+    res.json({ chart: result.chart || "", stats });
+  } catch (error) {
+    console.error("Simulation update error:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// Step 3: Get agent commentary (called debounced from frontend)
+app.post("/simulate/commentary", async (req, res) => {
+  const { scenario, variables, stats } = req.body;
+  if (!scenario) {
+    return res.status(400).json({ error: "Scenario is required" });
+  }
+
+  try {
+    const llm = getFastLLM();
+    const commentary = await getSimCommentary(llm, scenario, variables || [], stats || {});
+    res.json(commentary);
+  } catch (error) {
+    console.error("Commentary error:", error);
+    res.status(500).json({ error: String(error) });
+  }
+});
+
+// Helper: Generate 4 agent commentaries in parallel
+async function getSimCommentary(llm: any, scenario: string, variables: any[], stats: any) {
+  const context = `Scenario: ${scenario}\nVariables: ${JSON.stringify(variables)}\nSimulation Results: Mean=${stats.mean?.toFixed(2)}%, StdDev=${stats.std?.toFixed(2)}%, 5th Percentile=${stats.p5?.toFixed(2)}%, 95th Percentile=${stats.p95?.toFixed(2)}%`;
+
+  const [researcher, analyst, critic, executive] = await Promise.all([
+    llm.invoke([new SystemMessage(`You are a market researcher. In 2-3 sentences, cite relevant real-world market data that supports or contradicts this simulation scenario. Be specific with numbers.\n\n${context}`), new HumanMessage("Provide your analysis.")]).then((r: any) => typeof r.content === "string" ? r.content : String(r.content)),
+    llm.invoke([new SystemMessage(`You are a quantitative analyst. In 2-3 sentences, interpret the Monte Carlo simulation results. Focus on the mean outcome, the spread (std dev), and what the percentiles tell us about risk.\n\n${context}`), new HumanMessage("Provide your analysis.")]).then((r: any) => typeof r.content === "string" ? r.content : String(r.content)),
+    llm.invoke([new SystemMessage(`You are a risk critic. In 2-3 sentences, highlight the key assumptions and limitations of this simulation. What real-world factors might the model be missing?\n\n${context}`), new HumanMessage("Provide your analysis.")]).then((r: any) => typeof r.content === "string" ? r.content : String(r.content)),
+    llm.invoke([new SystemMessage(`You are a chief investment strategist. In 2-3 sentences, give an actionable recommendation based on these simulation results. Be decisive — recommend BUY, HOLD, or SELL with a confidence level.\n\n${context}`), new HumanMessage("Provide your recommendation.")]).then((r: any) => typeof r.content === "string" ? r.content : String(r.content)),
+  ]);
+
+  return { researcher, analyst, critic, executive };
+}
+
 const port = Number(process.env.PORT || 4000);
 app.listen(port, () => {
-  console.log(`\n🚀 NexusFlow API v3.0 listening on port ${port}`);
-  console.log(`   Architecture: Adversarial Debate + Critic`);
+  console.log(`\n🚀 NexusFlow API v4.0 listening on port ${port}`);
+  console.log(`   Architecture: Adversarial Debate + Critic + Simulator`);
   console.log(`   Endpoints:`);
   console.log(`     GET  /health`);
   console.log(`     GET  /config`);
@@ -294,5 +511,10 @@ app.listen(port, () => {
   console.log(`     GET  /analyze/stream`);
   console.log(`     GET  /reports`);
   console.log(`     GET  /reports/:id`);
-  console.log(`     DEL  /reports/:id\n`);
+  console.log(`     DEL  /reports/:id`);
+  console.log(`     POST /terminal/execute`);
+  console.log(`     POST /search`);
+  console.log(`     POST /simulate/init`);
+  console.log(`     POST /simulate/update`);
+  console.log(`     POST /simulate/commentary\n`);
 });
