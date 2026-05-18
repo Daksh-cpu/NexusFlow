@@ -891,6 +891,7 @@ export default function Page() {
                               </div>
                               <input 
                                 type="range"
+                                aria-label={v.label}
                                 className="simulator-slider-input"
                                 min={v.min}
                                 max={v.max}
