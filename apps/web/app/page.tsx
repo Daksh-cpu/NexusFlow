@@ -44,10 +44,12 @@ export default function Page() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [currentView, setCurrentView] = useState<"dashboard" | "ledger" | "search" | "terminal" | "simulator" | "settings">("dashboard");
   const [activeSettingsCategory, setActiveSettingsCategory] = useState<"api" | "llm" | "agents" | "theme" | "data">("api");
-  const [currentTheme, setCurrentTheme] = useState<"orange" | "blue" | "purple">("orange");
+  const [currentTheme, setCurrentTheme] = useState<"orange" | "blue" | "purple" | "custom">("orange");
+  const [customColor, setCustomColor] = useState<string>("#ff8c00");
   const [modelProvider, setModelProvider] = useState<"cohere" | "openai" | "anthropic">("cohere");
+  const colorInputRef = useRef<HTMLInputElement>(null);
 
-  const changeTheme = (themeName: "orange" | "blue" | "purple") => {
+  const changeTheme = (themeName: "orange" | "blue" | "purple" | "custom", customHex?: string) => {
     const root = document.documentElement;
     if (themeName === "orange") {
       root.style.setProperty("--accent", "#ff8c00");
@@ -58,6 +60,13 @@ export default function Page() {
     } else if (themeName === "purple") {
       root.style.setProperty("--accent", "#9370db");
       root.style.setProperty("--accent-glow", "rgba(147, 112, 219, 0.3)");
+    } else if (themeName === "custom" && customHex) {
+      root.style.setProperty("--accent", customHex);
+      const r = parseInt(customHex.slice(1, 3), 16) || 0;
+      const g = parseInt(customHex.slice(3, 5), 16) || 0;
+      const b = parseInt(customHex.slice(5, 7), 16) || 0;
+      root.style.setProperty("--accent-glow", `rgba(${r}, ${g}, ${b}, 0.3)`);
+      setCustomColor(customHex);
     }
     setCurrentTheme(themeName);
   };
@@ -608,10 +617,40 @@ export default function Page() {
                     <div className="flex flex-col gap-6">
                       <div className="settings-card">
                         <h3 className="font-semibold mb-3">Accent Color</h3>
-                        <div className="flex gap-4">
+                        <div className="flex items-center gap-4 flex-wrap">
                           <button className={cn("theme-dot theme-dot-orange", currentTheme === "orange" && "active")} onClick={() => changeTheme("orange")} aria-label="Orange Theme"></button>
                           <button className={cn("theme-dot theme-dot-blue", currentTheme === "blue" && "active")} onClick={() => changeTheme("blue")} aria-label="Blue Theme"></button>
                           <button className={cn("theme-dot theme-dot-purple", currentTheme === "purple" && "active")} onClick={() => changeTheme("purple")} aria-label="Purple Theme"></button>
+                          
+                          {/* Custom Color Active Preview Dot */}
+                          {currentTheme === "custom" && (
+                            <button 
+                              className="theme-dot active" 
+                              style={{ backgroundColor: customColor, color: customColor }}
+                              onClick={() => colorInputRef.current?.click()}
+                              aria-label="Custom Theme Preview"
+                            ></button>
+                          )}
+
+                          {/* Color Input Trigger */}
+                          <div className="relative">
+                            <input 
+                              type="color" 
+                              ref={colorInputRef}
+                              value={customColor} 
+                              onChange={(e) => changeTheme("custom", e.target.value)}
+                              className="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none"
+                              style={{ visibility: "hidden", position: "absolute" }}
+                              aria-label="Custom Color Picker"
+                            />
+                            <button 
+                              className="settings-btn flex items-center gap-2"
+                              onClick={() => colorInputRef.current?.click()}
+                            >
+                              <span className="w-4 h-4 rounded-full border border-white-20" style={{ background: "linear-gradient(135deg, red, yellow, green, cyan, blue, magenta, red)", display: "inline-block" }} />
+                              Change Ascent Color
+                            </button>
+                          </div>
                         </div>
                       </div>
                       <div className="settings-card flex items-center justify-between">
