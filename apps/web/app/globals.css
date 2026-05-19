@@ -2078,3 +2078,23 @@ body::-webkit-scrollbar {
   background-color: #9370db;
   color: rgba(147, 112, 219, 0.4);
 }
+
+.theme-dot-custom {
+  background-color: var(--accent);
+  color: var(--accent);
+}
+
+.hidden-color-input {
+  visibility: hidden;
+  position: absolute;
+}
+
+.color-picker-gradient {
+  background: linear-gradient(135deg, red, yellow, green, cyan, blue, magenta, red);
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+

@@ -625,8 +625,7 @@ export default function Page() {
                           {/* Custom Color Active Preview Dot */}
                           {currentTheme === "custom" && (
                             <button 
-                              className="theme-dot active" 
-                              style={{ backgroundColor: customColor, color: customColor }}
+                              className="theme-dot theme-dot-custom active" 
                               onClick={() => colorInputRef.current?.click()}
                               aria-label="Custom Theme Preview"
                             ></button>
@@ -639,15 +638,14 @@ export default function Page() {
                               ref={colorInputRef}
                               value={customColor} 
                               onChange={(e) => changeTheme("custom", e.target.value)}
-                              className="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none"
-                              style={{ visibility: "hidden", position: "absolute" }}
+                              className="absolute inset-0 w-0 h-0 opacity-0 pointer-events-none hidden-color-input"
                               aria-label="Custom Color Picker"
                             />
                             <button 
                               className="settings-btn flex items-center gap-2"
                               onClick={() => colorInputRef.current?.click()}
                             >
-                              <span className="w-4 h-4 rounded-full border border-white-20" style={{ background: "linear-gradient(135deg, red, yellow, green, cyan, blue, magenta, red)", display: "inline-block" }} />
+                              <span className="w-4 h-4 rounded-full border border-white-20 color-picker-gradient" />
                               Change Ascent Color
                             </button>
                           </div>
