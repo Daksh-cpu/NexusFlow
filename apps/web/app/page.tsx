@@ -44,6 +44,24 @@ export default function Page() {
   const [errorMsg, setErrorMsg] = useState<string>("");
   const [currentView, setCurrentView] = useState<"dashboard" | "ledger" | "search" | "terminal" | "simulator" | "settings">("dashboard");
   const [activeSettingsCategory, setActiveSettingsCategory] = useState<"api" | "llm" | "agents" | "theme" | "data">("api");
+  const [currentTheme, setCurrentTheme] = useState<"orange" | "blue" | "purple">("orange");
+  const [modelProvider, setModelProvider] = useState<"cohere" | "openai" | "anthropic">("cohere");
+
+  const changeTheme = (themeName: "orange" | "blue" | "purple") => {
+    const root = document.documentElement;
+    if (themeName === "orange") {
+      root.style.setProperty("--accent", "#ff8c00");
+      root.style.setProperty("--accent-glow", "rgba(255, 140, 0, 0.3)");
+    } else if (themeName === "blue") {
+      root.style.setProperty("--accent", "#1e90ff");
+      root.style.setProperty("--accent-glow", "rgba(30, 144, 255, 0.3)");
+    } else if (themeName === "purple") {
+      root.style.setProperty("--accent", "#9370db");
+      root.style.setProperty("--accent-glow", "rgba(147, 112, 219, 0.3)");
+    }
+    setCurrentTheme(themeName);
+  };
+
   const [reportsList, setReportsList] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -501,7 +519,7 @@ export default function Page() {
                         <input type="password" placeholder="e2b_..." className="settings-input" />
                       </div>
                       <div className="flex justify-end mt-2">
-                        <button className="btn-send px-6 py-2" onClick={() => handleFeatureClick("Save Keys")}>Save Changes</button>
+                        <button className="settings-btn settings-btn-primary" onClick={() => handleFeatureClick("Save Keys")}>Save Changes</button>
                       </div>
                     </div>
                   </div>
@@ -517,9 +535,30 @@ export default function Page() {
                       <div className="settings-card">
                         <h3 className="font-semibold mb-3">Default Provider</h3>
                         <div className="flex gap-4">
-                          <button className="settings-choice-btn active">Cohere</button>
-                          <button className="settings-choice-btn" onClick={() => handleFeatureClick("OpenAI Provider")}>OpenAI</button>
-                          <button className="settings-choice-btn" onClick={() => handleFeatureClick("Anthropic Provider")}>Anthropic</button>
+                          <button 
+                            className={cn("settings-choice-btn", modelProvider === "cohere" && "active")}
+                            onClick={() => setModelProvider("cohere")}
+                          >
+                            Cohere
+                          </button>
+                          <button 
+                            className={cn("settings-choice-btn", modelProvider === "openai" && "active")}
+                            onClick={() => {
+                              setModelProvider("openai");
+                              alert("OpenAI Provider selected! (This feature is coming soon in the next update)");
+                            }}
+                          >
+                            OpenAI
+                          </button>
+                          <button 
+                            className={cn("settings-choice-btn", modelProvider === "anthropic" && "active")}
+                            onClick={() => {
+                              setModelProvider("anthropic");
+                              alert("Anthropic Provider selected! (This feature is coming soon in the next update)");
+                            }}
+                          >
+                            Anthropic
+                          </button>
                         </div>
                       </div>
                       <div className="settings-card">
@@ -570,9 +609,9 @@ export default function Page() {
                       <div className="settings-card">
                         <h3 className="font-semibold mb-3">Accent Color</h3>
                         <div className="flex gap-4">
-                          <button className="w-10 h-10 rounded-full bg-orange-500 border-2 border-white ring-2 ring-orange-500/50" onClick={() => handleFeatureClick("Orange Theme")} aria-label="Orange Theme"></button>
-                          <button className="w-10 h-10 rounded-full bg-blue-500 border-2 border-transparent hover:border-white/50 transition-all" onClick={() => handleFeatureClick("Blue Theme")} aria-label="Blue Theme"></button>
-                          <button className="w-10 h-10 rounded-full bg-purple-500 border-2 border-transparent hover:border-white/50 transition-all" onClick={() => handleFeatureClick("Purple Theme")} aria-label="Purple Theme"></button>
+                          <button className={cn("theme-dot theme-dot-orange", currentTheme === "orange" && "active")} onClick={() => changeTheme("orange")} aria-label="Orange Theme"></button>
+                          <button className={cn("theme-dot theme-dot-blue", currentTheme === "blue" && "active")} onClick={() => changeTheme("blue")} aria-label="Blue Theme"></button>
+                          <button className={cn("theme-dot theme-dot-purple", currentTheme === "purple" && "active")} onClick={() => changeTheme("purple")} aria-label="Purple Theme"></button>
                         </div>
                       </div>
                       <div className="settings-card flex items-center justify-between">
@@ -580,7 +619,7 @@ export default function Page() {
                           <h3 className="font-semibold mb-1">Ambient Particles</h3>
                           <p className="text-xs text-white-40">Animated background particles.</p>
                         </div>
-                        <button className="btn-send px-4 py-1 bg-green-500/20 text-green-400 border border-green-500/30">Enabled</button>
+                        <button className="settings-btn settings-btn-success" onClick={() => handleFeatureClick("Toggle Particles")}>Enabled</button>
                       </div>
                     </div>
                   </div>
@@ -598,14 +637,14 @@ export default function Page() {
                           <h3 className="font-semibold mb-1">Export Research Ledger</h3>
                           <p className="text-xs text-white-40">Download all past reports as JSON.</p>
                         </div>
-                        <button className="btn-secondary flex items-center gap-2" onClick={() => handleFeatureClick("Export Data")}><FileText size={16} /> Export</button>
+                        <button className="settings-btn" onClick={() => handleFeatureClick("Export Data")}><FileText size={16} /> Export</button>
                       </div>
                       <div className="settings-card flex items-center justify-between border-red-500/30 bg-red-500/5">
                         <div>
                           <h3 className="font-semibold text-red-400 mb-1">Clear Local Cache</h3>
                           <p className="text-xs text-red-400/70">Wipes all unsaved inputs and local storage.</p>
                         </div>
-                        <button className="btn-secondary text-red-400 hover:bg-red-500/20 hover:border-red-500/50 border-red-500/30" onClick={() => handleFeatureClick("Clear Cache")}><Trash2 size={16} /> Clear Data</button>
+                        <button className="settings-btn settings-btn-danger" onClick={() => handleFeatureClick("Clear Cache")}><Trash2 size={16} /> Clear Data</button>
                       </div>
                     </div>
                   </div>
