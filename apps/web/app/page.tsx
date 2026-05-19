@@ -524,9 +524,9 @@ export default function Page() {
                       </div>
                       <div className="settings-card">
                         <h3 className="font-semibold mb-3">Model Tier</h3>
-                        <select className="settings-select w-full">
-                          <option>Command R+ (Recommended)</option>
-                          <option>Command R</option>
+                        <select className="settings-select w-full" aria-label="Model Tier" defaultValue="Command R+">
+                          <option value="Command R+">Command R+ (Recommended)</option>
+                          <option value="Command R">Command R</option>
                         </select>
                       </div>
                     </div>
@@ -570,9 +570,9 @@ export default function Page() {
                       <div className="settings-card">
                         <h3 className="font-semibold mb-3">Accent Color</h3>
                         <div className="flex gap-4">
-                          <button className="w-10 h-10 rounded-full bg-orange-500 border-2 border-white ring-2 ring-orange-500/50"></button>
-                          <button className="w-10 h-10 rounded-full bg-blue-500 border-2 border-transparent hover:border-white/50 transition-all" onClick={() => handleFeatureClick("Blue Theme")}></button>
-                          <button className="w-10 h-10 rounded-full bg-purple-500 border-2 border-transparent hover:border-white/50 transition-all" onClick={() => handleFeatureClick("Purple Theme")}></button>
+                          <button className="w-10 h-10 rounded-full bg-orange-500 border-2 border-white ring-2 ring-orange-500/50" onClick={() => handleFeatureClick("Orange Theme")} aria-label="Orange Theme"></button>
+                          <button className="w-10 h-10 rounded-full bg-blue-500 border-2 border-transparent hover:border-white/50 transition-all" onClick={() => handleFeatureClick("Blue Theme")} aria-label="Blue Theme"></button>
+                          <button className="w-10 h-10 rounded-full bg-purple-500 border-2 border-transparent hover:border-white/50 transition-all" onClick={() => handleFeatureClick("Purple Theme")} aria-label="Purple Theme"></button>
                         </div>
                       </div>
                       <div className="settings-card flex items-center justify-between">
