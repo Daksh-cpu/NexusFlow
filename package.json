@@ -7,7 +7,7 @@
     "packages/*"
   ],
   "scripts": {
-    "build": "npm run -ws build",
+    "build": "npm run build -w packages/shared && npm run build -w packages/retrieval && npm run build -w packages/agents && npm run build -w packages/graph && npm run build -w apps/api && npm run build -w apps/web",
     "dev:api": "npm run -w apps/api dev",
     "dev:web": "npm run -w apps/web dev",
     "lint": "npm run -ws lint",
