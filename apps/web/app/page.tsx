@@ -27,6 +27,8 @@ const AGENT_META: Record<string, { label: string; icon: string; colorClass: stri
 // Pipeline stage order for the visual tracker
 const PIPELINE_STAGES = ["generate_queries", "retrieve_documents", "bull_analyst", "bear_analyst", "data_analyst", "critic", "synthesize"];
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:4000";
+
 export default function Page() {
   const { isSignedIn } = useUser();
   const { signOut } = useClerk();
@@ -40,7 +42,8 @@ export default function Page() {
   const [elapsed, setElapsed] = useState<number>(0);
   const [copied, setCopied] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string>("");
-  const [currentView, setCurrentView] = useState<"dashboard" | "ledger" | "search" | "terminal" | "simulator">("dashboard");
+  const [currentView, setCurrentView] = useState<"dashboard" | "ledger" | "search" | "terminal" | "simulator" | "settings">("dashboard");
+  const [activeSettingsCategory, setActiveSettingsCategory] = useState<"api" | "llm" | "agents" | "theme" | "data">("api");
   const [reportsList, setReportsList] = useState<any[]>([]);
   const [loadingReports, setLoadingReports] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -72,7 +75,7 @@ export default function Page() {
   const loadReports = async () => {
     setLoadingReports(true);
     try {
-      const res = await fetch("http://localhost:4000/reports");
+      const res = await fetch(`${API_URL}/reports`);
       const data = await res.json();
       setReportsList(data);
     } catch (e) {
@@ -83,7 +86,7 @@ export default function Page() {
 
   const deleteReport = async (id: string) => {
     try {
-      await fetch(`http://localhost:4000/reports/${id}`, { method: "DELETE" });
+      await fetch(`${API_URL}/reports/${id}`, { method: "DELETE" });
       setReportsList(prev => prev.filter(r => r.id !== id));
     } catch (e) {
       console.error("Failed to delete report", e);
@@ -92,7 +95,7 @@ export default function Page() {
 
   const loadPastReport = async (id: string) => {
     try {
-      const res = await fetch(`http://localhost:4000/reports/${id}`);
+      const res = await fetch(`${API_URL}/reports/${id}`);
       const data = await res.json();
       setCompany(data.company);
       setQuestion(data.question);
@@ -111,7 +114,7 @@ export default function Page() {
     setTerminalRunning(true);
     
     try {
-      const res = await fetch("http://localhost:4000/terminal/execute", {
+      const res = await fetch(`${API_URL}/terminal/execute`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: cmd })
@@ -136,7 +139,7 @@ export default function Page() {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 30000);
       
-      const res = await fetch("http://localhost:4000/search", {
+      const res = await fetch(`${API_URL}/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query: searchQuery }),
@@ -180,7 +183,7 @@ export default function Page() {
     setSimVariables([]);
 
     try {
-      const res = await fetch("http://localhost:4000/simulate/init", {
+      const res = await fetch(`${API_URL}/simulate/init`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scenario: simScenario }),
@@ -213,7 +216,7 @@ export default function Page() {
     updatedVars.forEach(v => { varsObj[v.name] = v.value; });
 
     try {
-      const res = await fetch("http://localhost:4000/simulate/update", {
+      const res = await fetch(`${API_URL}/simulate/update`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ variables: varsObj }),
@@ -232,7 +235,7 @@ export default function Page() {
     if (simDebounceRef.current) clearTimeout(simDebounceRef.current);
     simDebounceRef.current = setTimeout(async () => {
       try {
-        const cRes = await fetch("http://localhost:4000/simulate/commentary", {
+        const cRes = await fetch(`${API_URL}/simulate/commentary`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ scenario: simScenario, variables: updatedVars, stats: simStats }),
@@ -300,7 +303,7 @@ export default function Page() {
     setErrorMsg("");
 
     const contextualQuestion = `Analyze ${company}: ${question}`;
-    const streamUrl = `http://localhost:4000/analyze/stream?company=${encodeURIComponent(company)}&question=${encodeURIComponent(contextualQuestion)}`;
+    const streamUrl = `${API_URL}/analyze/stream?company=${encodeURIComponent(company)}&question=${encodeURIComponent(contextualQuestion)}`;
     const source = new EventSource(streamUrl);
     let receivedFinal = false;
 
@@ -402,7 +405,7 @@ export default function Page() {
           <span className="nav-link" onClick={() => setCurrentView("terminal")}>Terminal</span>
           <span className="nav-link" onClick={() => setCurrentView("simulator")}>Simulation</span>
           <div className="user-profile flex items-center gap-3">
-            <Settings size={18} className="nav-link" onClick={() => handleFeatureClick("Settings")} />
+            <Settings size={18} className="nav-link" onClick={() => setCurrentView("settings")} />
             <SignedIn>
               <UserButton appearance={{ elements: { userButtonAvatarBox: "w-8 h-8 rounded-full border border-white/20" } }} />
             </SignedIn>
@@ -423,7 +426,159 @@ export default function Page() {
       </header>
 
       <main className="flex-1 flex overflow-hidden p-6 gap-6 z-10">
-        {/* Left Sidebar */}
+        {currentView === "settings" ? (
+          <div className="flex-1 flex overflow-hidden gap-6 w-full h-full">
+            {/* Settings Sidebar */}
+            <nav className="glass-panel sidebar-nav flex-none w-64 p-4">
+              <h2 className="px-4 py-2 font-bold text-white-50 uppercase tracking-wider text-xs mb-4">Settings Hub</h2>
+              <NavItem icon={<Activity size={24} />} title="API Keys & Auth" active={activeSettingsCategory === "api"} onClick={() => setActiveSettingsCategory("api")} />
+              <NavItem icon={<Brain size={24} />} title="LLM Engine" active={activeSettingsCategory === "llm"} onClick={() => setActiveSettingsCategory("llm")} />
+              <NavItem icon={<Settings size={24} />} title="Agent Tuning" active={activeSettingsCategory === "agents"} onClick={() => setActiveSettingsCategory("agents")} />
+              <NavItem icon={<Layers size={24} />} title="Theme & UI" active={activeSettingsCategory === "theme"} onClick={() => setActiveSettingsCategory("theme")} />
+              <NavItem icon={<FileText size={24} />} title="Data & Privacy" active={activeSettingsCategory === "data"} onClick={() => setActiveSettingsCategory("data")} />
+            </nav>
+
+            {/* Settings Content Area */}
+            <div className="flex-1 glass-panel p-8 overflow-y-auto custom-scrollbar relative">
+              <div className="max-w-3xl mx-auto flex flex-col gap-8">
+                {activeSettingsCategory === "api" && (
+                  <div className="animate-fade-in">
+                    <div className="mb-8">
+                      <h1 className="text-2xl font-bold mb-2">API Keys & Integrations</h1>
+                      <p className="text-white-50">Override default environment variables for this session. Keys are stored locally and never sent to our servers.</p>
+                    </div>
+                    <div className="flex flex-col gap-6">
+                      <div className="settings-card">
+                        <h3 className="font-semibold mb-1">Cohere API Key</h3>
+                        <p className="text-xs text-white-40 mb-3">Required for Command R+ reasoning and generation.</p>
+                        <input type="password" placeholder="sk-..." className="settings-input" />
+                      </div>
+                      <div className="settings-card">
+                        <h3 className="font-semibold mb-1">Tavily Search API Key</h3>
+                        <p className="text-xs text-white-40 mb-3">Required for the Researcher agent to perform deep web searches.</p>
+                        <input type="password" placeholder="tvly-..." className="settings-input" />
+                      </div>
+                      <div className="settings-card">
+                        <h3 className="font-semibold mb-1">E2B Cloud Sandbox Key</h3>
+                        <p className="text-xs text-white-40 mb-3">Required for Data Analyst and Simulator quantitative modeling.</p>
+                        <input type="password" placeholder="e2b_..." className="settings-input" />
+                      </div>
+                      <div className="flex justify-end mt-2">
+                        <button className="btn-send px-6 py-2" onClick={() => handleFeatureClick("Save Keys")}>Save Changes</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeSettingsCategory === "llm" && (
+                  <div className="animate-fade-in">
+                    <div className="mb-8">
+                      <h1 className="text-2xl font-bold mb-2">LLM Engine Preferences</h1>
+                      <p className="text-white-50">Configure the underlying intelligence engine powering NexusFlow agents.</p>
+                    </div>
+                    <div className="flex flex-col gap-6">
+                      <div className="settings-card">
+                        <h3 className="font-semibold mb-3">Default Provider</h3>
+                        <div className="flex gap-4">
+                          <button className="settings-choice-btn active">Cohere</button>
+                          <button className="settings-choice-btn" onClick={() => handleFeatureClick("OpenAI Provider")}>OpenAI</button>
+                          <button className="settings-choice-btn" onClick={() => handleFeatureClick("Anthropic Provider")}>Anthropic</button>
+                        </div>
+                      </div>
+                      <div className="settings-card">
+                        <h3 className="font-semibold mb-3">Model Tier</h3>
+                        <select className="settings-select w-full">
+                          <option>Command R+ (Recommended)</option>
+                          <option>Command R</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeSettingsCategory === "agents" && (
+                  <div className="animate-fade-in">
+                    <div className="mb-8">
+                      <h1 className="text-2xl font-bold mb-2">Agent Persona Tuning</h1>
+                      <p className="text-white-50">Adjust the behavioral parameters of the autonomous agents.</p>
+                    </div>
+                    <div className="flex flex-col gap-6">
+                      <div className="settings-card">
+                        <div className="flex justify-between items-center mb-1">
+                          <h3 className="font-semibold">Creativity (Temperature)</h3>
+                          <span className="text-accent text-sm">0.3</span>
+                        </div>
+                        <p className="text-xs text-white-40 mb-4">Higher values make agents more creative but less deterministic.</p>
+                        <input type="range" className="simulator-slider-input w-full" min="0" max="1" step="0.1" defaultValue="0.3" aria-label="Temperature" />
+                      </div>
+                      <div className="settings-card">
+                        <div className="flex justify-between items-center mb-1">
+                          <h3 className="font-semibold">Critic Skepticism</h3>
+                          <span className="text-critic text-sm">High</span>
+                        </div>
+                        <p className="text-xs text-white-40 mb-4">Determines how aggressively the Critic agent challenges findings.</p>
+                        <input type="range" className="simulator-slider-input w-full" min="0" max="100" step="10" defaultValue="80" aria-label="Critic Skepticism" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeSettingsCategory === "theme" && (
+                  <div className="animate-fade-in">
+                    <div className="mb-8">
+                      <h1 className="text-2xl font-bold mb-2">Theme & UI Appearance</h1>
+                      <p className="text-white-50">Customize the NexusFlow interface.</p>
+                    </div>
+                    <div className="flex flex-col gap-6">
+                      <div className="settings-card">
+                        <h3 className="font-semibold mb-3">Accent Color</h3>
+                        <div className="flex gap-4">
+                          <button className="w-10 h-10 rounded-full bg-orange-500 border-2 border-white ring-2 ring-orange-500/50"></button>
+                          <button className="w-10 h-10 rounded-full bg-blue-500 border-2 border-transparent hover:border-white/50 transition-all" onClick={() => handleFeatureClick("Blue Theme")}></button>
+                          <button className="w-10 h-10 rounded-full bg-purple-500 border-2 border-transparent hover:border-white/50 transition-all" onClick={() => handleFeatureClick("Purple Theme")}></button>
+                        </div>
+                      </div>
+                      <div className="settings-card flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold mb-1">Ambient Particles</h3>
+                          <p className="text-xs text-white-40">Animated background particles.</p>
+                        </div>
+                        <button className="btn-send px-4 py-1 bg-green-500/20 text-green-400 border border-green-500/30">Enabled</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {activeSettingsCategory === "data" && (
+                  <div className="animate-fade-in">
+                    <div className="mb-8">
+                      <h1 className="text-2xl font-bold mb-2">Data & Privacy</h1>
+                      <p className="text-white-50">Manage your local storage and research ledger exports.</p>
+                    </div>
+                    <div className="flex flex-col gap-6">
+                      <div className="settings-card flex items-center justify-between">
+                        <div>
+                          <h3 className="font-semibold mb-1">Export Research Ledger</h3>
+                          <p className="text-xs text-white-40">Download all past reports as JSON.</p>
+                        </div>
+                        <button className="btn-secondary flex items-center gap-2" onClick={() => handleFeatureClick("Export Data")}><FileText size={16} /> Export</button>
+                      </div>
+                      <div className="settings-card flex items-center justify-between border-red-500/30 bg-red-500/5">
+                        <div>
+                          <h3 className="font-semibold text-red-400 mb-1">Clear Local Cache</h3>
+                          <p className="text-xs text-red-400/70">Wipes all unsaved inputs and local storage.</p>
+                        </div>
+                        <button className="btn-secondary text-red-400 hover:bg-red-500/20 hover:border-red-500/50 border-red-500/30" onClick={() => handleFeatureClick("Clear Cache")}><Trash2 size={16} /> Clear Data</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <>
+            {/* Left Sidebar */}
         <nav className="glass-panel sidebar-nav flex-none">
           <NavItem icon={<Activity size={24} />} title="Dashboard" active={currentView === "dashboard"} onClick={() => setCurrentView("dashboard")} />
           <NavItem icon={<FileText size={24} />} title="Research Ledger" active={currentView === "ledger"} onClick={() => { setCurrentView("ledger"); loadReports(); }} />
@@ -1117,6 +1272,8 @@ export default function Page() {
              </div>
           </div>
         </div>
+          </>
+        )}
       </main>
     </div>
   );
