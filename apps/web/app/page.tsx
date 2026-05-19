@@ -99,6 +99,23 @@ export default function Page() {
   const [simUpdating, setSimUpdating] = useState(false);
   const simDebounceRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Combined Usage Limit State (max 5 questions total)
+  const [usageCount, setUsageCount] = useState<number>(0);
+  const [showLimitModal, setShowLimitModal] = useState<boolean>(false);
+
+  useEffect(() => {
+    const saved = localStorage.getItem("nexusflow_usage_count");
+    if (saved) {
+      setUsageCount(parseInt(saved, 10));
+    }
+  }, []);
+
+  const incrementUsage = () => {
+    const nextCount = usageCount + 1;
+    setUsageCount(nextCount);
+    localStorage.setItem("nexusflow_usage_count", nextCount.toString());
+  };
+
   const loadReports = async () => {
     setLoadingReports(true);
     try {
@@ -159,6 +176,11 @@ export default function Page() {
 
   const runWebSearch = async () => {
     if (!searchQuery.trim() || searchRunning) return;
+    if (usageCount >= 5) {
+      setShowLimitModal(true);
+      return;
+    }
+    incrementUsage();
     setSearchRunning(true);
     setSearchResult("");
     
@@ -202,6 +224,11 @@ export default function Page() {
   // Simulator: Initialize
   const initSimulation = async () => {
     if (!simScenario.trim() || simLoading) return;
+    if (usageCount >= 5) {
+      setShowLimitModal(true);
+      return;
+    }
+    incrementUsage();
     setSimLoading(true);
     setSimInitialized(false);
     setSimChart("");
@@ -327,8 +354,13 @@ export default function Page() {
       alert("Please sign in to run an autonomous analysis.");
       return;
     }
+    if (usageCount >= 5) {
+      setShowLimitModal(true);
+      return;
+    }
     if (!canRun || running) return;
     
+    incrementUsage();
     setRunning(true);
     setEvents([]);
     setFinalReport("");
@@ -388,7 +420,7 @@ export default function Page() {
       }
       source.close();
     };
-  }, [canRun, running, company, question, errorMsg]);
+  }, [canRun, running, company, question, errorMsg, usageCount, isSignedIn]);
 
   const resetAll = () => {
     setFinalReport("");
@@ -441,6 +473,12 @@ export default function Page() {
           <span className="nav-link" onClick={() => setCurrentView("search")}>Web Search</span>
           <span className="nav-link" onClick={() => setCurrentView("terminal")}>Terminal</span>
           <span className="nav-link" onClick={() => setCurrentView("simulator")}>Simulation</span>
+          {isSignedIn && (
+            <div className="hidden md:flex items-center gap-1.5 px-3 py-1 bg-white/5 border border-white-08 rounded-full text-xs font-mono text-white-70">
+              <span className="w-1.5 h-1.5 rounded-full bg-orange-500 animate-pulse" />
+              <span>Queries: {usageCount}/5</span>
+            </div>
+          )}
           <div className="user-profile flex items-center gap-3">
             <Settings size={18} className="nav-link" onClick={() => setCurrentView("settings")} />
             <SignedIn>
@@ -1400,6 +1438,46 @@ export default function Page() {
           </>
         )}
       </main>
+
+      <AnimatePresence>
+        {showLimitModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md">
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              transition={{ type: "spring", duration: 0.4 }}
+              className="glass-panel max-w-md w-full p-8 border border-white-15 shadow-2xl relative text-center flex flex-col items-center gap-6"
+            >
+              <div className="w-16 h-16 rounded-full bg-orange-500/10 border border-orange-500/30 flex items-center justify-center text-orange-500 text-3xl animate-pulse">
+                ⚡
+              </div>
+              <div>
+                <h2 className="text-2xl font-bold mb-2">Usage Limit Reached</h2>
+                <p className="text-sm text-white-60 leading-relaxed">
+                  You have reached the maximum limit of 5 combined queries/simulations for this session. Upgrade to NexusFlow Premium for unlimited deep research queries, continuous sandbox simulations, and live web access.
+                </p>
+              </div>
+              <div className="w-full border-t border-white-08 pt-4 flex flex-col gap-3">
+                <button
+                  className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-500 hover:from-orange-600 hover:to-amber-600 text-white font-bold rounded-lg transition-all duration-300 shadow-lg shadow-orange-500/20"
+                  onClick={() => {
+                    alert("NexusFlow Premium subscription tiers are coming soon!");
+                  }}
+                >
+                  Upgrade to Premium
+                </button>
+                <button
+                  className="w-full py-2 bg-white/5 hover:bg-white/10 text-white-80 text-sm rounded-lg transition-all"
+                  onClick={() => setShowLimitModal(false)}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
