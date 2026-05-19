@@ -429,13 +429,50 @@ export default function Page() {
         {currentView === "settings" ? (
           <div className="flex-1 flex overflow-hidden gap-6 w-full h-full">
             {/* Settings Sidebar */}
-            <nav className="glass-panel sidebar-nav flex-none w-64 p-4">
-              <h2 className="px-4 py-2 font-bold text-white-50 uppercase tracking-wider text-xs mb-4">Settings Hub</h2>
-              <NavItem icon={<Activity size={24} />} title="API Keys & Auth" active={activeSettingsCategory === "api"} onClick={() => setActiveSettingsCategory("api")} />
-              <NavItem icon={<Brain size={24} />} title="LLM Engine" active={activeSettingsCategory === "llm"} onClick={() => setActiveSettingsCategory("llm")} />
-              <NavItem icon={<Settings size={24} />} title="Agent Tuning" active={activeSettingsCategory === "agents"} onClick={() => setActiveSettingsCategory("agents")} />
-              <NavItem icon={<Layers size={24} />} title="Theme & UI" active={activeSettingsCategory === "theme"} onClick={() => setActiveSettingsCategory("theme")} />
-              <NavItem icon={<FileText size={24} />} title="Data & Privacy" active={activeSettingsCategory === "data"} onClick={() => setActiveSettingsCategory("data")} />
+            <nav className="glass-panel settings-sidebar flex-none">
+              <button 
+                className="settings-sidebar-back-btn"
+                onClick={() => setCurrentView("dashboard")}
+              >
+                <RotateCcw size={16} className="rotate-180" />
+                <span>Back to App</span>
+              </button>
+              <h2 className="settings-sidebar-title">Settings Hub</h2>
+              <button 
+                className={cn("settings-sidebar-link", activeSettingsCategory === "api" && "active")}
+                onClick={() => setActiveSettingsCategory("api")}
+              >
+                <Activity size={18} />
+                <span>API Keys & Auth</span>
+              </button>
+              <button 
+                className={cn("settings-sidebar-link", activeSettingsCategory === "llm" && "active")}
+                onClick={() => setActiveSettingsCategory("llm")}
+              >
+                <Brain size={18} />
+                <span>LLM Engine</span>
+              </button>
+              <button 
+                className={cn("settings-sidebar-link", activeSettingsCategory === "agents" && "active")}
+                onClick={() => setActiveSettingsCategory("agents")}
+              >
+                <Settings size={18} />
+                <span>Agent Tuning</span>
+              </button>
+              <button 
+                className={cn("settings-sidebar-link", activeSettingsCategory === "theme" && "active")}
+                onClick={() => setActiveSettingsCategory("theme")}
+              >
+                <Layers size={18} />
+                <span>Theme & UI</span>
+              </button>
+              <button 
+                className={cn("settings-sidebar-link", activeSettingsCategory === "data" && "active")}
+                onClick={() => setActiveSettingsCategory("data")}
+              >
+                <FileText size={18} />
+                <span>Data & Privacy</span>
+              </button>
             </nav>
 
             {/* Settings Content Area */}
