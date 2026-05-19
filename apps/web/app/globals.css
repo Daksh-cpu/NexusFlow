@@ -758,8 +758,10 @@ h1, h2, h3 {
   justify-content: center;
   text-align: center;
   padding: 0 1.5rem;
-  color: rgba(255, 255, 255, 0.15);
-  font-size: 0.875rem;
+  color: rgba(255, 255, 255, 0.55);
+  font-size: 0.9rem;
+  font-weight: 500;
+  letter-spacing: 0.02em;
 }
 
 .badge-live {
@@ -1752,7 +1754,14 @@ body::-webkit-scrollbar {
   gap: 1.5rem;
   padding: 4rem 2rem;
   text-align: center;
-  color: rgba(255, 255, 255, 0.4);
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.simulator-empty-state p {
+  color: rgba(255, 255, 255, 0.65) !important;
+  opacity: 1 !important;
+  font-size: 0.95rem;
+  line-height: 1.6;
 }
 
 .simulator-empty-icon {
