@@ -152,6 +152,10 @@ export default function Page() {
 
   const runTerminalCommand = async () => {
     if (!terminalInput.trim() || terminalRunning) return;
+    if (!isSignedIn) {
+      alert("Please sign in to execute terminal commands.");
+      return;
+    }
     const cmd = terminalInput;
     setTerminalInput("");
     setTerminalLogs(prev => [...prev, { type: 'cmd', content: cmd }]);
@@ -176,6 +180,10 @@ export default function Page() {
 
   const runWebSearch = async () => {
     if (!searchQuery.trim() || searchRunning) return;
+    if (!isSignedIn) {
+      alert("Please sign in to execute a web search.");
+      return;
+    }
     if (usageCount >= 5) {
       setShowLimitModal(true);
       return;
@@ -224,6 +232,10 @@ export default function Page() {
   // Simulator: Initialize
   const initSimulation = async () => {
     if (!simScenario.trim() || simLoading) return;
+    if (!isSignedIn) {
+      alert("Please sign in to launch a simulation.");
+      return;
+    }
     if (usageCount >= 5) {
       setShowLimitModal(true);
       return;

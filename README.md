@@ -123,6 +123,14 @@ graph TD
 5. **The Quality Critic**: Enforces strict verification. Mathematically grades the analysts on a 20-point checklist (citations, logic, balance). If they score under 15, they are forced to self-correct.
 6. **The Executive Synthesizer**: Reviews all arguments, weights the evidence, and issues a structured investment recommendation.
 
+### 🖥️ Sidebar Navigation (Platform Views)
+To help you navigate the system, here is what each tab on the left sidebar is designed for:
+*   **🔍 Search Tool (Dashboard)**: The core multi-agent research dashboard. Enter a company/ticker and a question to launch the cyclic debate workflow and view real-time streaming intelligence logs.
+*   **📚 Research Ledger**: The centralized historical index. Persists and indexes all successfully completed analysis reports so you can fetch them instantly without re-running agent processing.
+*   **🌐 Web Search**: Direct real-time internet search tool. Enter high-level queries to get instant search answers with inline citations powered by Tavily Search.
+*   **💻 Terminal**: A sandboxed interactive developer environment. Input Python formulas or quantitative instructions and see output variables and plots computed instantly.
+*   **📈 Simulation**: A futuristic financial forecasting interface. Model forward-looking economic scenarios by adjusting sliders and receiving direct agent-grade commentary.
+
 ---
 
 ## ⚡ Deep-Dive Features
