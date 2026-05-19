@@ -1,155 +1,272 @@
-# 🧠 NexusFlow — Autonomous Multi-Agent Research Platform
+<p align="center">
+  <img src="assets/banner.png" alt="NexusFlow AI Banner" width="750"/>
+</p>
 
-> An elite investment research system powered by adversarial AI agents that **debate**, **argue**, and **decide** — so you don't have to.
+<h1 align="center">🧠 NexusFlow AI</h1>
+<h3 align="center">Autonomous Multi-Agent Research Platform — Adversarial Debates, PhD-Level Investment Reports</h3>
 
-[![Architecture](https://img.shields.io/badge/Architecture-Multi--Agent_Debate-ff8c00?style=for-the-badge)](/)
-[![LangGraph](https://img.shields.io/badge/Orchestration-LangGraph-blue?style=for-the-badge)](https://github.com/langchain-ai/langgraphjs)
-[![Cohere](https://img.shields.io/badge/LLM-Command_R+-purple?style=for-the-badge)](https://cohere.com)
-[![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](/)
+<p align="center">
+  <img src="https://img.shields.io/badge/version-1.0.0-orange?style=for-the-badge" alt="Version"/>
+  <img src="https://img.shields.io/badge/Orchestration-LangGraph-blue?style=for-the-badge&logo=chainlink" alt="Orchestration"/>
+  <img src="https://img.shields.io/badge/LLM-Command_R+-purple?style=for-the-badge" alt="LLM"/>
+  <img src="https://img.shields.io/badge/Next.js-14+-black?style=for-the-badge&logo=nextdotjs" alt="Next.js"/>
+  <img src="https://img.shields.io/badge/Vector_DB-Qdrant-red?style=for-the-badge&logo=qdrant" alt="Vector DB"/>
+  <img src="https://img.shields.io/badge/License-MIT-green?style=for-the-badge" alt="License"/>
+</p>
+
+<p align="center">
+  <a href="#-what-is-nexusflow">About</a> •
+  <a href="#-why-nexusflow-wins">Why NexusFlow?</a> •
+  <a href="#-system-architecture">System Architecture</a> •
+  <a href="#-deep-dive-features">Deep-Dive Features</a> •
+  <a href="#-monorepo-structure">Monorepo Structure</a> •
+  <a href="#-tech-stack">Tech Stack</a> •
+  <a href="#-quick-start">Quick Start</a> •
+  <a href="#-resilience--fallbacks">Resilience</a> •
+  <a href="#-roadmap">Roadmap</a>
+</p>
 
 ---
 
 ## 🎯 What is NexusFlow?
 
-NexusFlow is a **production-grade multi-agent research platform** that uses an adversarial debate architecture to produce balanced, evidence-backed investment analysis. Instead of a single AI writing a report, NexusFlow deploys specialized agents that argue opposing viewpoints before an Executive agent delivers the final verdict.
+**NexusFlow** is a production-grade, multi-agent research platform designed to automate deep, institutional-level investment analysis. 
 
-### The 6-Agent Debate Architecture
+Instead of asking a single AI to generate a biased, one-sided summary, NexusFlow triggers a **parallel adversarial debate**. It deploys specialized AI agents to uncover arguments, challenge logic, and stress-test assumptions before an Executive Synthesizer issues a final, mathematically validated investment recommendation (**INVEST**, **WAIT**, or **SELL**).
 
-```text
- ┌───────────────┐
- │ User Question │
- └───────┬───────┘
-         │
- ┌───────▼───────┐
- │     Query     │  🔍 Generates 3 targeted research angles
- │    Engine     │
- └───────┬───────┘
-         │
- ┌───────▼───────┐
- │    Hybrid     │  📡 Qdrant (Local) + Tavily (Web)
- │    Search     │  → 3-Tier Reranking Pipeline
- └──┬─────────┬──┘
-    │         │
-┌───▼───┐ ┌───▼───┐    ← Parallel Execution
-│       │ │       │
-│ BULL  │ │ BEAR  │    🟢 Builds upside case
-│Analyst│ │Analyst│    🔴 Investigates risks
-└───┬───┘ └───┬───┘
-    │         │
-    └────┬────┘
-         │
- ┌───────▼───────┐
- │    Quality    │  ⚖️ Scores analysis /20 (Citations, Logic, Risks)
- │    Critic     │  Enforces strict self-correction
- └───────┬───────┘
-         │
- ┌───────▼───────┐
- │   Executive   │  ⚡ Final Verdict: INVEST / WAIT / SELL
- │  Synthesizer  │  + Confidence Score + Action Plan
- └───────────────┘
+> **The Problem:** Standard AI models suffer from confirmation bias—they summarize the first web search result and agree with your premise. They miss deep risks, lack citation logic, and hallucinate logical links.
+> **NexusFlow was built to eliminate this.**
+
+---
+
+## 🏆 Why NexusFlow Wins
+
+> Compared against standard single-LLM pipelines and basic web search wrappers.
+
+| Capability | 🧠 **NexusFlow AI** | 🌐 Standard LLM Wrapper | 🤖 Single Chatbot |
+| :--- | :---: | :---: | :---: |
+| **Adversarial Debate Architecture** | ✅ **Parallel Bull & Bear Agents** | ❌ Single-perspective summary | ❌ Static linear chat |
+| **Logical Validation Scoring** | ✅ **Critic scoring system (/20)** | ❌ No self-correction | ❌ Zero logical verification |
+| **Streaming Telemetry Tracker** | ✅ **Real-time node lifecycle** | ❌ Basic progress spinner | ❌ Page loading indicator |
+| **Hybrid 3-Tier Retrieval** | ✅ **Qdrant + Tavily + Reranker** | ❌ Direct Google search | ❌ Simple text extraction |
+| **Cache Ledger & Streaming** | ✅ **Instant Redis/JSON caching** | ❌ Full LLM wait time every run | ❌ Cacheless, slow API |
+| **Monorepo Separation** | ✅ **Clean domain separation** | ❌ Giant monolithic codebase | ❌ Single-file script |
+| **UI Aesthetics** | ✅ **Premium Glassmorphism** | ❌ Generic boilerplate | ❌ Plain terminal/text |
+| **Failure Tolerance** | ✅ **Full Offline Fallbacks** | ❌ Crashes on API failure | ❌ Blocks on error |
+
+### Key Differentiators — The 3 Things Nobody Else Does Together
+
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│  1. BIAS ELIMINATION  → Parallel Bull & Bear execution              │
+│     Forces opposing models to construct contradictory investment    │
+│     theses, uncovering hidden market risks.                         │
+│                                                                     │
+│  2. CRITIC SCORING    → Strict Self-Correction Loop                 │
+│     A mathematical quality control agent scores outputs and sends   │
+│     insufficient analyses back to the drawing board for revision.   │
+│                                                                     │
+│  3. FULL TELEMETRY    → Glassmorphism Dashboard UI                  │
+│     Watch live agent thoughts stream dynamically as they crawl     │
+│     the web and deliberate in real-time.                            │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
 ---
 
-## ✨ v1.0.0 Features
+## 🏗️ System Architecture
 
-*   **Adversarial Debate**: Bull and Bear analysts argue the data in parallel to eliminate AI bias.
-*   **Self-Correction System**: The Critic agent mathematically scores the analysis, forcing agents to back up claims with citations.
-*   **Research Ledger**: All reports are automatically cached locally as JSON. Re-requesting the same company streams instantly, bypassing the 40s LLM execution time.
-*   **Premium Glassmorphism UI**: 
-    *   Live-streaming Agent Thought sidebar
-    *   Visual Pipeline Execution Tracker
-    *   Dynamic pulse animations and professional markdown rendering
-*   **Bulletproof Retrieval**: Gracefully falls back through 3 tiers of rerankers and hybrid search methods to guarantee a result even if services go offline.
+### Multi-Agent Interaction Workflow
+
+```mermaid
+graph TD
+    subgraph Input["📥 User Ingestion"]
+        U[User Question / Ticker]
+    end
+
+    subgraph Orchestrator["🧠 LangGraph Orchestration Engine"]
+        QE[Query Engine Agent<br/>Generates 3 research vectors]
+        HS[Hybrid Search Router<br/>Qdrant Vector DB & Tavily Web Search]
+        
+        subgraph Debate["⚖️ Adversarial Debate Chamber"]
+            BULL[Bull Analyst Agent<br/>Builds upside thesis & ROI cases]
+            BEAR[Bear Analyst Agent<br/>Builds downside risks & vulnerabilities]
+        end
+
+        CRIT[Quality Critic Agent<br/>Validates logic, citations & bias]
+        EXEC[Executive Synthesizer Agent<br/>Formulates final decision]
+    end
+
+    subgraph Telemetry["📡 Telemetry & Caching"]
+        RL[Research Ledger<br/>JSON Cached Streams]
+        SSE[Server-Sent Events<br/>Next.js Glassmorphism UI]
+    end
+
+    U --> QE
+    QE --> HS
+    HS -->|Parallel Fan-Out| BULL & BEAR
+    BULL & BEAR -->|Parallel Fan-In| CRIT
+    
+    CRIT -->|Scores < 15/20| Debate
+    CRIT -->|Scores >= 15/20| EXEC
+    
+    EXEC --> RL
+    RL --> SSE
+```
+
+### The 6 Specialized Agent Roles
+
+1. **The Query Engine**: Converts a raw user query into three hyper-targeted research vectors designed to locate maximum signal.
+2. **Hybrid Search Router**: Leverages local Qdrant Vector embeddings paired with Tavily AI live search, routing through a 3-tier reranking pipeline.
+3. **The Bull Analyst**: Assumes an optimistic, growth-oriented stance. Explores upside, margin improvements, and revenue streams.
+4. **The Bear Analyst**: Assumes an adversarial, skeptical stance. Focuses on competitor threats, supply chain risks, and financial vulnerability.
+5. **The Quality Critic**: Enforces strict verification. Mathematically grades the analysts on a 20-point checklist (citations, logic, balance). If they score under 15, they are forced to self-correct.
+6. **The Executive Synthesizer**: Reviews all arguments, weights the evidence, and issues a structured investment recommendation.
+
+---
+
+## ⚡ Deep-Dive Features
+
+### 1. Adversarial Agentic Debate (Parallel Fan-Out)
+Instead of relying on a single large language model to compile a balanced perspective, NexusFlow splits the analysis into parallel nodes. The **Bull** and **Bear** agents run independently to eliminate natural cognitive bias and surface deep, non-obvious risks.
+
+### 2. Critic Self-Correction System
+Our **Quality Critic** acts as an automated editor. Using a highly constrained Pydantic verification schema, it scores reports based on three criteria:
+*   **Citation Density**: Are assertions backed by real data?
+*   **Logical Continuity**: Do statements follow logically from retrieved documents?
+*   **Contradiction Analysis**: Did both sides genuinely address each other's points?
+
+If the analysis fails the score benchmark, it is automatically re-routed back to the debate chamber.
+
+### 3. Glassmorphism Visual Tracker & Live Telemetry
+Built on a stunning Next.js glassmorphism layout, you can follow the progress of the multi-agent graph dynamically. See exactly which node is active, check the running timer, and monitor the live-streaming **Agent Thought Logs** as they process.
+
+### 4. Zero-Delay Research Ledger (Caching & Streaming)
+Every report generated is instantly committed to our secure local Research Ledger database. If a user requests a report for a ticker that has already been compiled, NexusFlow bypasses the 40-second agent processing delay and instantly streams the cached report from the ledger.
 
 ---
 
 ## 🏗️ Monorepo Structure
 
+NexusFlow is architected as an enterprise-grade monorepo to ensure strong encapsulation between the visual, agentic, and retrieval domains:
+
 ```
+nexusflow/
 ├── apps/
-│   ├── api/          # Express API with SSE streaming
-│   └── web/          # Next.js 14 streaming UI
+│   ├── api/                   # Express backend server with Server-Sent Events (SSE)
+│   └── web/                   # Next.js 14 glassmorphic frontend UI
+│
 ├── packages/
-│   ├── agents/       # Agent logic (Researcher, Analyst, Critic, Executive)
-│   ├── graph/        # LangGraph orchestration (debate flow)
-│   ├── retrieval/    # Hybrid retrieval + reranking + web search
-│   └── shared/       # Zod schemas and typed contracts
-├── data/             # Sample research documents
-├── docker-compose.yml # Qdrant vector database
-└── render.yaml       # Production deployment config
+│   ├── agents/                # Core agent schemas, logic, and system prompts
+│   ├── graph/                 # LangGraph orchestration (debate loops & validation)
+│   ├── retrieval/             # 3-tier reranker (Cohere -> local) & vector retrieval
+│   └── shared/                # Zod schemas, validation contracts & typescript interfaces
+│
+├── assets/                    # Project banners, design assets, and logos
+├── data/                      # Local document ingestion folders
+├── docker-compose.yml         # Container configuration for Qdrant DB
+└── render.yaml                # Render cloud deployment blueprint
 ```
 
 ---
 
-## ⚡ Quick Start
+## 🛠️ Tech Stack
 
+| Domain | Technology | Description |
+|:---|:---|:---|
+| **Orchestration** | LangGraph JS | Complex cyclic agent flows, parallel loops, and state control |
+| **LLMs & Embeddings**| Cohere Command R+ | Advanced reasoning & high-precision multi-lingual embeddings |
+| **Vector Database** | Qdrant | Fast, scalable, HNSW-indexed vector retrieval engine |
+| **Search Engine** | Tavily Search AI | Specialized search API optimized for LLM RAG pipelines |
+| **Frontend** | Next.js 14 (App Router) | High-performance React framework with Tailwind CSS |
+| **UI Orchestration** | Framer Motion | Fluid micro-animations and physics-based page transitions |
+| **Backend** | Express.js | Async server engine providing Server-Sent Events (SSE) |
+| **Validation** | Zod / Pydantic | End-to-end typed contract enforcement and payload validation |
+
+---
+
+## 🚀 Quick Start
+
+### Prerequisites
+*   Node.js v18.0.0+
+*   Docker (for running the local Qdrant Vector database)
+*   **API Keys**: You will need API keys for **Cohere** and **Tavily**.
+
+### 1. Clone and Install
 ```bash
-# 1. Install dependencies
+git clone https://github.com/Daksh-cpu/NexusFlow.git
+cd NexusFlow
 npm install
+```
 
-# 2. Configure environment
+### 2. Configure Environment Variables
+Copy `.env.example` to `.env` in the root directory:
+```bash
 cp .env.example .env
-# Add your COHERE_API_KEY and TAVILY_API_KEY
+```
+Fill in your credentials:
+```env
+COHERE_API_KEY=your_cohere_key_here
+TAVILY_API_KEY=your_tavily_key_here
+PORT=4000
+NEXT_PUBLIC_API_URL=http://localhost:4000
+```
 
-# 3. Start Qdrant (requires Docker)
+### 3. Spin Up Vector Database
+Start the pre-configured Qdrant container:
+```bash
 docker-compose up -d
+```
 
-# 4. Ingest sample data
+### 4. Ingest Local Documents (Optional)
+Drop your text files or PDFs into `data/` and ingest them into Qdrant:
+```bash
 npx tsx apps/api/src/ingest-sample.ts
+```
 
-# 5. Start the API
+### 5. Launch Development Servers
+Run the full monorepo concurrently:
+```bash
+# Start Backend Express API
 npm run dev:api
 
-# 6. Start the Web UI
+# Start Next.js Frontend Webpage
 npm run dev:web
-
-# 7. Open http://localhost:3000
 ```
 
----
-
-## 🛡️ Resilience Features
-
-NexusFlow is designed to **never break**, even when services are unavailable:
-
-| Scenario | Behavior |
-|---|---|
-| Qdrant is offline | Proceeds with web search only |
-| Tavily key missing | Proceeds with local documents only |
-| Cohere reranker fails | Falls back to local similarity reranker |
-| All rerankers fail | Returns original documents (no crash) |
+Open **[http://localhost:3000](http://localhost:3000)** in your browser!
 
 ---
 
-## 🔧 Tech Stack
+## 🛡️ Resilience & Fallbacks
 
-| Layer | Technology |
-|---|---|
-| **Orchestration** | LangGraph (parallel fan-out/fan-in) |
-| **LLM** | Cohere Command R+ |
-| **Embeddings** | Cohere embed-english-v3.0 |
-| **Vector DB** | Qdrant |
-| **Web Search** | Tavily |
-| **Reranking** | Cohere Rerank → Local Fallback |
-| **Frontend** | Next.js 14 + Framer Motion |
-| **Backend** | Express + Server-Sent Events |
-| **Validation** | Zod |
+NexusFlow is engineered to be highly fault-tolerant and never crash, even during catastrophic cloud API outages:
+
+| Outage Scenario | System Behavior |
+|:---|:---|
+| **Qdrant Vector DB Offline** | Automatically skips local database checks and falls back to 100% web-search mode. |
+| **Tavily Web Search Limit** | Gracefully drops internet search and runs analysis using local vector documents only. |
+| **Cohere Reranker Fails** | Instantly switches to a custom local Jaccard-similarity reranker logic. |
+| **All Rerankers Offline** | Bypasses reranking entirely and passes raw, similarity-scored items directly to agents without crashing. |
 
 ---
 
-## 🌐 Deployment (100% Free)
+## 🗺️ Roadmap
 
-| Service | Provider | Cost |
-|---|---|---|
-| Frontend | Vercel (Hobby) | $0/mo |
-| Backend | Render.com (Free) | $0/mo |
-| Vector DB | Qdrant Cloud (Free) | $0/mo |
-| LLM | Cohere (Trial) | $0/mo |
-| Web Search | Tavily (Free) | $0/mo |
+| Milestone | Status | Details |
+|:---|:---|:---|
+| **v1.0 (Current)** | 🟢 **LIVE** | 6-Agent adversarial debate graph, Quality Critic evaluation, Research Ledger caching, premium Glassmorphism UI, SSE streaming. |
+| **v1.5 (Up Next)** | 🟡 **PLANNED** | Multi-ticker comparison reports, real-time stock price ticker visualizer components. |
+| **v2.0 (Future)** | 📋 **PLANNED** | Integration of local open-weight models (Llama-3/DeepSeek) for fully self-hosted, air-gapped private search. |
 
 ---
 
 ## 📄 License
+This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) file for details.
 
-MIT © Daksh
+---
+
+<p align="center">
+  <b>Developed by <a href="https://github.com/Daksh-cpu">Daksh</a></b><br/>
+  <sub>If NexusFlow helped you streamline your research — please ⭐ <b>star this repository</b>!</sub>
+</p>
