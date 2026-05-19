@@ -310,6 +310,14 @@ export default function Page() {
     };
   }, [running, startTime]);
 
+  // Auto-redirect to dashboard if trying to access ledger while not signed in
+  useEffect(() => {
+    if (!isSignedIn && currentView === "ledger") {
+      setCurrentView("dashboard");
+    }
+  }, [isSignedIn, currentView]);
+
+
   const canRun = useMemo(() => company.trim().length > 0 && question.trim().length > 0, [company, question]);
 
   const completedNodes = useMemo(() => new Set(events.map(e => e.node)), [events]);
@@ -427,7 +435,9 @@ export default function Page() {
         
         <div className="nav-links">
           <span className="nav-link" onClick={() => setCurrentView("dashboard")}>Search Tool</span>
-          <span className="nav-link" onClick={() => { setCurrentView("ledger"); loadReports(); }}>Research Ledger</span>
+          {isSignedIn && (
+            <span className="nav-link" onClick={() => { setCurrentView("ledger"); loadReports(); }}>Research Ledger</span>
+          )}
           <span className="nav-link" onClick={() => setCurrentView("search")}>Web Search</span>
           <span className="nav-link" onClick={() => setCurrentView("terminal")}>Terminal</span>
           <span className="nav-link" onClick={() => setCurrentView("simulator")}>Simulation</span>
@@ -694,7 +704,9 @@ export default function Page() {
             {/* Left Sidebar */}
         <nav className="glass-panel sidebar-nav flex-none">
           <NavItem icon={<Activity size={24} />} title="Dashboard" active={currentView === "dashboard"} onClick={() => setCurrentView("dashboard")} />
-          <NavItem icon={<FileText size={24} />} title="Research Ledger" active={currentView === "ledger"} onClick={() => { setCurrentView("ledger"); loadReports(); }} />
+          {isSignedIn && (
+            <NavItem icon={<FileText size={24} />} title="Research Ledger" active={currentView === "ledger"} onClick={() => { setCurrentView("ledger"); loadReports(); }} />
+          )}
           <NavItem icon={<Globe size={24} />} title="Web Search" active={currentView === "search"} onClick={() => setCurrentView("search")} />
           <NavItem icon={<Terminal size={24} />} title="Terminal" active={currentView === "terminal"} onClick={() => setCurrentView("terminal")} />
           <NavItem icon={<Zap size={24} />} title="Simulator" active={currentView === "simulator"} onClick={() => setCurrentView("simulator")} />
