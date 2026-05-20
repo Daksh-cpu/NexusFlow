@@ -284,6 +284,36 @@ NexusFlow is engineered to be highly fault-tolerant and never crash, even during
 5. **Executive Synthesis**: Once the critic approves, the **Executive Synthesizer Agent** consolidates both views, weights the evidence, and issues a final, structured investment decision (**INVEST**, **WAIT**, or **SELL**) complete with risk percentages and actionable takeaways.
 6. **Glassmorphic Streaming & Caching**: The entire debate, node transitions, and raw agent thought logs are streamed to a stunning, modern frontend built with **Next.js 14**, **Framer Motion**, and Server-Sent Events (SSE). Concurrently, finalized reports are persisted to a local **Research Ledger** for zero-delay instant retrieval in subsequent requests.
 
+Here is the visual mapping of a query's lifecycle through the platform:
+
+```mermaid
+graph TD
+    classDef default fill:#111,stroke:#333,stroke-width:1px,color:#fff;
+    classDef agent fill:#1a1b26,stroke:#7aa2f7,stroke-width:2px,color:#7aa2f7;
+    classDef db fill:#1a1b26,stroke:#f7768e,stroke-width:2px,color:#f7768e;
+    classDef out fill:#1a1b26,stroke:#9ece6a,stroke-width:2px,color:#9ece6a;
+
+    User(["📥 User Query / Ticker"]) --> Ingest["Query Engine Agent<br/>Query Deconstruction"]:::agent
+    Ingest --> Search{"Hybrid Retrieval Router"}
+    
+    Search -->|Local KB| Qdrant[("Qdrant Vector DB")]:::db
+    Search -->|Live Web| Tavily["Tavily Search API"]:::db
+    
+    Qdrant & Tavily --> Rerank["3-Tier Reranking Engine"]
+    Rerank --> Debate{"Debate Chamber"}
+    
+    Debate -->|Optimistic Case| Bull["Bull Analyst Agent"]:::agent
+    Debate -->|Skeptical Case| Bear["Bear Analyst Agent"]:::agent
+    
+    Bull & Bear --> Critic{"Quality Critic Agent<br/>Logic & Citation Audit"}:::agent
+    
+    Critic -->|Score < 15/20| Debate
+    Critic -->|Score >= 15/20| Exec["Executive Synthesizer Agent"]:::agent
+    
+    Exec --> Ledger[("Research Ledger Caching")]:::db
+    Exec --> UI[/"SSE Glassmorphic Live UI"/]:::out
+```
+
 ### Why It Matters
 NexusFlow bridges the gap between raw web search and high-fidelity institutional analysis. By mathematically enforcing objective debate and programmatic verification, it eliminates AI confirmation bias and hallucinations, presenting researchers, analysts, and individual investors with a reliable, robust, and state-of-the-art decision-making engine.
 
